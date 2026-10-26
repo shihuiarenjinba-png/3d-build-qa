@@ -49,5 +49,10 @@ class QATest(unittest.TestCase):
         self.assertEqual(inspect(r)["status"], "BLOCKED")
 
 
+    def test_integer_launch_flag_blocks(self):
+        r = receipt()
+        r["windows_launch"] = 1
+        self.assertEqual(inspect(r)["status"], "BLOCKED")
+
 if __name__ == "__main__":
     unittest.main()
