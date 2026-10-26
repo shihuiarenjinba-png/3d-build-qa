@@ -1,0 +1,5 @@
+# 3D build QA acceptance boundary
+
+This package checks **only the structure and internal consistency of a claimed Windows-run receipt**. It does not run Unreal Engine, install an application, inspect a screenshot, verify a real runner or validate SHA-256 against bytes. Positive output is EVIDENCE_REVIEW, not PASS. Report HOLD for failed/skipped/zero tests, crashes, or launch failure. Forged evidence can pass the shape check: actual GitHub run provenance, artifact bytes, Windows runtime, GPU performance and visual comparison must be independently verified before downstream handoff.
+
+Future integration: Windows GPU-capable self-hosted or cloud-hosted runner; pinned engine version, deterministic asset license inventory, build artifact hash verification, meaningful end-to-end input control tests, graphics presets (integrated GPU/high-end), performance and first-run UI assessment. Never assume local user PC is the production runner. Bridge and Windows-all-auto require separate authenticated evidence verification. No package submission.
