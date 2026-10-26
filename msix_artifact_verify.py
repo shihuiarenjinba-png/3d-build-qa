@@ -24,7 +24,8 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
     """Inspect actual bytes without extracting archive entries or trusting receipt claims."""
     result = {
         "status": "BLOCKED", "errors": [], "artifact_bytes_verified": False,
-        "manifest_identity_matched": False, "official_identity_verified": False,
+        "manifest_identity_matched": False, "payload_executables_verified": False,
+        "official_identity_verified": False,
         "github_provenance_verified": False, "windows_launch_verified": False,
         "signature_verified": False, "submission_authorized": False,
     }
@@ -61,6 +62,32 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
             with archive.open(manifest_info) as stream:
                 manifest = stream.read(MAX_MANIFEST_BYTES + 1)
             root = ET.fromstring(manifest)
+            groups = [node for node in root if node.tag.split("}")[-1] == "Applications"]
+            if len(groups) != 1:
+                raise ValueError("exactly one Applications element required")
+            applications = [node for node in groups[0] if node.tag.split("}")[-1] == "Application"]
+            if not applications:
+                raise ValueError("MSIX declares no application executable")
+            for application in applications:
+                executable = application.attrib.get("Executable", "")
+                normalized = executable.replace("\\", "/")
+                components = normalized.split("/")
+                if (not normalized.lower().endswith(".exe") or
+                        any(not part or part in (".", "..") or ":" in part
+                            for part in components)):
+                    raise ValueError("unsafe or invalid application executable path")
+                matches = [info for info in archive.infolist()
+                           if info.filename.casefold() == normalized.casefold()]
+                if len(matches) != 1:
+                    raise ValueError("declared application executable missing or duplicated")
+                info = matches[0]
+                if (info.is_dir() or info.file_size < 2 or
+                        (info.external_attr >> 16) & 0o170000 == 0o120000):
+                    raise ValueError("application executable empty or a symlink")
+                with archive.open(info) as stream:
+                    if stream.read(2) != b"MZ":
+                        raise ValueError("application executable lacks MZ header")
+            result["payload_executables_verified"] = True
         if root.tag.split("}")[-1] != "Package":
             raise ValueError("invalid MSIX package manifest root")
         identities = [node for node in root if node.tag.split("}")[-1] == "Identity"]
