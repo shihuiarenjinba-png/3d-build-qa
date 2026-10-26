@@ -38,7 +38,7 @@ def inspect(receipt):
         for k in ("executed", "failed", "skipped", "crashes"):
             if type(tests.get(k)) is not int or tests[k] < 0:
                 errors.append(f"invalid tests.{k}")
-    if receipt.get("windows_launch") not in (True, False):
+    if type(receipt.get("windows_launch")) is not bool:
         errors.append("windows_launch must be boolean")
     if not _match(ID, receipt.get("runner_evidence_id")):
         errors.append("runner_evidence_id required")
