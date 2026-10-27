@@ -52,6 +52,10 @@ def main():
     (stage / "Assets").mkdir(parents=True, exist_ok=True)
     (stage / "AppxManifest.xml").write_text(MANIFEST, encoding="utf-8")
     (stage / "Assets" / "Logo.png").write_bytes(PNG)
+    # >128 KiB deterministic, high-entropy payload exercises three real
+    # MakeAppx 64-KiB BlockMap blocks without a compression-bomb fixture.
+    (stage / "Assets" / "payload.bin").write_bytes(b"".join(
+        hashlib.sha256(i.to_bytes(4, "little")).digest() for i in range(4100)))
     # MZ-shaped fixture only: no application launch, no Microsoft binary redistribution.
     (stage / "Game" / "game.exe").write_bytes(b"MZoffline-fixture-not-runnable")
     package = out / "offline-3d-fixture.msix"
@@ -69,10 +73,31 @@ def main():
     # This must never be interpreted as product E2E or Partner Center evidence.
     with patch("msix_artifact_verify.inspect", return_value={"status": "EVIDENCE_REVIEW", "errors": []}):
         result = verify_msix(receipt, package)
+    # Corrupt an actual MakeAppx ZIP64 descriptor while keeping the central
+    # directory/payload intact; recompute receipt SHA so the byte guard itself
+    # (not just package digest) must reject it.
+    with zipfile.ZipFile(package) as archive:
+        member = archive.getinfo("Game/game.exe")
+        with package.open("rb") as raw:
+            raw.seek(member.header_offset + 26)
+            name_len, extra_len = struct.unpack("<HH", raw.read(4))
+            descriptor_at = member.header_offset + 30 + name_len + extra_len + member.compress_size
+    forged = bytearray(package.read_bytes())
+    assert forged[descriptor_at:descriptor_at + 4] == b"PK\x07\x08"
+    forged[descriptor_at + 8] ^= 1  # 64-bit compressed-size low byte
+    bad_package = out / "forged-descriptor.msix"
+    bad_package.write_bytes(forged)
+    bad_receipt = dict(receipt, package_sha256=hashlib.sha256(forged).hexdigest())
+    with patch("msix_artifact_verify.inspect", return_value={"status": "EVIDENCE_REVIEW", "errors": []}):
+        rejected = verify_msix(bad_receipt, bad_package)
+    bad_package.unlink()
+    assert rejected["status"] == "BLOCKED", rejected
+    assert any("descriptor" in error.lower() for error in rejected["errors"]), rejected
     evidence = {
         "kind": "UNSIGNED_SYNTHETIC_MAKEAPPX_FIXTURE_NOT_PRODUCT",
         "makeappx_path": str(tools[0]), "package_sha256": digest,
         "package_bytes": package.stat().st_size, "verification": result,
+        "forged_makeappx_descriptor_rejected": True,
         "official_identity": None, "windows_gpu_gui_tested": False,
         "store_submission_allowed": False,
     }
