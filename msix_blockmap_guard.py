@@ -72,6 +72,11 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
             raise ValueError("unknown or duplicate AppxBlockMap file")
         seen.add(key)
         entry = names[key]
+        # BlockMap uses Windows backslashes; a normalized lookup alone would
+        # accept forward slashes and case aliases not present in the ZIP.
+        # Require the exact ZIP member spelling before trusting its hashes.
+        if raw_name != entry.filename.replace("/", "\\"):
+            raise ValueError("noncanonical AppxBlockMap file name")
         size = _nonnegative_integer(file_node.get("Size"), "file Size")
         if size != entry.file_size:
             raise ValueError("AppxBlockMap file Size mismatch")
