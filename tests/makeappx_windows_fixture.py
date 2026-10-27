@@ -88,13 +88,17 @@ def main():
                 flags = struct.unpack_from("<H", header, 6)[0]
                 crc, packed, unpacked = struct.unpack_from("<III", header, 14)
                 name_len, extra_len = struct.unpack_from("<HH", header, 26)
-                offset = info.header_offset + 30 + name_len + extra_len + info.compress_size
+                data_offset = info.header_offset + 30 + name_len + extra_len
+                raw.seek(data_offset)
+                compressed_head = raw.read(8).hex()
+                offset = data_offset + info.compress_size
                 raw.seek(offset)
                 print("ZIP_DESCRIPTOR_DIAGNOSTIC", json.dumps({
                     "name": info.filename, "flags": flags, "local_crc": crc,
                     "local_compressed": packed, "local_uncompressed": unpacked,
                     "central_crc": info.CRC, "central_compressed": info.compress_size,
                     "central_uncompressed": info.file_size,
+                    "compressed_head": compressed_head,
                     "descriptor_hex": raw.read(32).hex(),
                 }))
     assert result["status"] == "HOLD", result
