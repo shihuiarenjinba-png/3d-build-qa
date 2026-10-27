@@ -110,6 +110,33 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
                 if local_size != central_size:
                     raise ValueError("ZIP64 local/central " + label + " size mismatch")
                 position += 8
+        # When GPBF bit 3 is set, CRC/sizes are stored in a trailing data
+        # descriptor instead of the local header. zipfile verifies payload
+        # CRC against the central directory but does not inspect this
+        # descriptor, so contradictory metadata must be rejected explicitly.
+        if local_flags & 0x0008:
+            local_compressed, local_uncompressed = struct.unpack_from("<II", local, 18)
+            zip64_descriptor = (
+                local_compressed == 0xFFFFFFFF or
+                local_uncompressed == 0xFFFFFFFF or
+                info.compress_size > 0xFFFFFFFF or info.file_size > 0xFFFFFFFF
+            )
+            descriptor_offset = (info.header_offset + 30 + name_size +
+                                 extra_size + info.compress_size)
+            archive.fp.seek(descriptor_offset)
+            descriptor = archive.fp.read(24 if zip64_descriptor else 16)
+            if descriptor[:4] == b"PK\\x07\\x08":
+                start = 4
+            else:
+                start = 0
+            fmt = "<IQQ" if zip64_descriptor else "<III"
+            required = struct.calcsize(fmt)
+            if len(descriptor) < start + required:
+                raise ValueError("truncated ZIP data descriptor")
+            crc, compressed, uncompressed = struct.unpack_from(fmt, descriptor, start)
+            if (crc != info.CRC or compressed != info.compress_size or
+                    uncompressed != info.file_size):
+                raise ValueError("ZIP data descriptor/central metadata mismatch")
         name = info.filename
         if not isinstance(name, str) or len(name) > MAX_PATH_LENGTH:
             raise ValueError("invalid MSIX ZIP entry path length")
