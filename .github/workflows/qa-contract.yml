@@ -13,5 +13,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m compileall -q qa_gate.py tests
+      - run: python -m compileall -q qa_gate.py msix_artifact_verify.py msix_zip_guard.py msix_blockmap_guard.py tests
       - run: python -m unittest discover -s tests -v
+
+  makeappx-fixture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pack real unsigned MakeAppx fixture and verify ZIP/BlockMap/OPC bytes
+        run: python tests/makeappx_windows_fixture.py
+      - name: Retain fixture-only evidence (never a sellable product)
+        uses: actions/upload-artifact@v4
+        with:
+          name: makeappx-3d-offline-unsigned-fixture-not-product
+          path: |
+            ${{ runner.temp }}/3d-makeappx-fixture/offline-3d-fixture.msix
+            ${{ runner.temp }}/3d-makeappx-fixture/fixture-evidence.json
+          retention-days: 3
