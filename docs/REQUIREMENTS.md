@@ -20,7 +20,7 @@ The command streams SHA-256 over actual package bytes, checks that the claimed h
 Before reading the manifest, the verifier now checks every archive entry for
 Windows-safe relative paths, case-insensitive collisions (including non-executable
 assets), DOS device names, alternate data streams, trailing spaces/dots,
-file/directory ancestor conflicts, symlinks, encryption, unsupported compression
+file/directory ancestor conflicts, symlinks, Unix device/FIFO/socket entries, mismatched file/directory type markers, encryption, unsupported compression
 and bounded uncompressed size/expansion ratio. A failure is **BLOCKED**, not
 EVIDENCE_REVIEW. These tests use synthetic ZIP fixtures only, not a produced
 3D MSIX. They do not authenticate official Partner Center Identity, validate
