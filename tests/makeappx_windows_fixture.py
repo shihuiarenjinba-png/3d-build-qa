@@ -57,7 +57,17 @@ def main():
     (stage / "Assets" / "payload.bin").write_bytes(b"".join(
         hashlib.sha256(i.to_bytes(4, "little")).digest() for i in range(4100)))
     # MZ-shaped fixture only: no application launch, no Microsoft binary redistribution.
-    (stage / "Game" / "game.exe").write_bytes(b"MZoffline-fixture-not-runnable")
+    # These are synthetic bytes, not a real Godot export. Pin their digests
+    # independently of the MSIX container to exercise the payload contract.
+    fake_exe = b"MZoffline-fixture-not-runnable"
+    fake_pck = b"GDPCoffline-pck-fixture-not-a-playable-project"
+    (stage / "Game" / "game.exe").write_bytes(fake_exe)
+    (stage / "Game" / "game.pck").write_bytes(fake_pck)
+    expected_export = {
+        "exe_path": "Game/game.exe", "exe_sha256": hashlib.sha256(fake_exe).hexdigest(),
+        "embed_pck": False, "pck_path": "Game/game.pck",
+        "pck_sha256": hashlib.sha256(fake_pck).hexdigest(),
+    }
     package = out / "offline-3d-fixture.msix"
     subprocess.run([str(tools[0]), "pack", "/d", str(stage), "/p", str(package), "/o"], check=True)
     digest = hashlib.sha256(package.read_bytes()).hexdigest()
@@ -72,7 +82,7 @@ def main():
     # Bypass only the launch receipt gate to test actual MakeAppx bytes.
     # This must never be interpreted as product E2E or Partner Center evidence.
     with patch("msix_artifact_verify.inspect", return_value={"status": "EVIDENCE_REVIEW", "errors": []}):
-        result = verify_msix(receipt, package)
+        result = verify_msix(receipt, package, expected_godot_export=expected_export)
     # Corrupt an actual MakeAppx ZIP64 descriptor while keeping the central
     # directory/payload intact; recompute receipt SHA so the byte guard itself
     # (not just package digest) must reject it.
@@ -98,6 +108,7 @@ def main():
         "makeappx_path": str(tools[0]), "package_sha256": digest,
         "package_bytes": package.stat().st_size, "verification": result,
         "forged_makeappx_descriptor_rejected": True,
+        "synthetic_godot_exe_pck_hash_contract_checked": True,
         "official_identity": None, "windows_gpu_gui_tested": False,
         "store_submission_allowed": False,
     }
@@ -131,7 +142,8 @@ def main():
                 }))
     assert result["status"] == "HOLD", result
     for key in ("artifact_bytes_verified", "content_types_verified",
-                "blockmap_verified", "payload_executables_verified"):
+                "blockmap_verified", "payload_executables_verified",
+                "godot_export_bytes_matched"):
         assert result[key] is True, (key, result)
     for key in ("official_identity_verified", "windows_launch_verified",
                 "signature_verified", "submission_authorized"):
