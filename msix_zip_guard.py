@@ -50,6 +50,21 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
         name_size, extra_size = struct.unpack_from("<HH", local, 26)
         if local_flags != info.flag_bits or local_method != info.compress_type:
             raise ValueError("ZIP local/central header metadata mismatch")
+        # Without a data descriptor, the local header must agree with the
+        # central directory. zipfile reads the central CRC/sizes and otherwise
+        # accepts forged local values even when the member bytes are intact.
+        # ZIP64 size sentinels are left to the ZIP64 extra field and the
+        # downstream byte/blockmap checks; never compare them as 32-bit sizes.
+        if not (local_flags & 0x0008):
+            local_crc, local_compressed, local_uncompressed = struct.unpack_from("<III", local, 14)
+            if local_crc != info.CRC:
+                raise ValueError("ZIP local/central CRC mismatch")
+            if (local_compressed != 0xFFFFFFFF and
+                    local_compressed != info.compress_size):
+                raise ValueError("ZIP local/central compressed size mismatch")
+            if (local_uncompressed != 0xFFFFFFFF and
+                    local_uncompressed != info.file_size):
+                raise ValueError("ZIP local/central uncompressed size mismatch")
         raw_name = archive.fp.read(name_size)
         try:
             central_name = info.filename.encode(

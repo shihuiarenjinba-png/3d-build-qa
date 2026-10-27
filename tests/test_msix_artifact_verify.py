@@ -549,6 +549,24 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED", result)
         self.assertFalse(result["artifact_bytes_verified"])
 
+    def test_local_header_crc_and_size_disagreement_blocks(self):
+        # zipfile normally trusts the central directory CRC and sizes; a
+        # recomputed outer SHA does not authenticate contradictory LFH fields.
+        for field, field_offset in (("crc", 14), ("compressed", 18), ("uncompressed", 22)):
+            with self.subTest(field=field):
+                self.make_package()
+                with zipfile.ZipFile(self.path) as archive:
+                    header_offset = archive.getinfo("Game/game.exe").header_offset
+                raw = bytearray(self.path.read_bytes())
+                offset = header_offset + field_offset
+                original = struct.unpack_from("<I", raw, offset)[0]
+                struct.pack_into("<I", raw, offset, (original + 1) & 0xFFFFFFFF)
+                self.path.write_bytes(raw)
+                digest = hashlib.sha256(raw).hexdigest()
+                result = verify_msix(receipt(digest), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+                self.assertFalse(result["artifact_bytes_verified"])
+
     def test_normal_explicit_directory_entry_is_allowed(self):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("[Content_Types].xml", CONTENT_TYPES)
