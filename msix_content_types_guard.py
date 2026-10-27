@@ -71,7 +71,10 @@ def validate_content_types(archive: zipfile.ZipFile) -> None:
         extension = original.rsplit("/", 1)[-1].rsplit(".", 1)[-1].casefold()
         if key not in overrides and extension not in defaults:
             raise ValueError("package part lacks content type")
-    if overrides.get("appxmanifest.xml") != MANIFEST_TYPE:
+    # MakeAppx 10.0.26100 legitimately declares manifest MIME via the
+    # default .xml mapping and overrides AppxBlockMap.xml separately.
+    manifest_type = overrides.get("appxmanifest.xml", defaults.get("xml"))
+    if manifest_type != MANIFEST_TYPE:
         raise ValueError("missing or incorrect AppxManifest content type")
     if overrides.get("appxblockmap.xml") != BLOCKMAP_TYPE:
         raise ValueError("missing or incorrect AppxBlockMap content type")
