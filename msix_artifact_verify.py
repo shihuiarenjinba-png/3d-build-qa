@@ -19,6 +19,10 @@ from msix_zip_guard import validate_archive_paths
 SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
 MAX_PACKAGE_BYTES = 8 * 1024**3
 MAX_MANIFEST_BYTES = 512 * 1024
+# The local name alone is not a trustworthy manifest element identity.
+# A forged namespace must never satisfy MSIX Identity/Application checks.
+MANIFEST_NS = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+
 
 
 def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = None) -> dict:
@@ -74,10 +78,10 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
             with archive.open(manifest_info) as stream:
                 manifest = stream.read(MAX_MANIFEST_BYTES + 1)
             root = ET.fromstring(manifest)
-            groups = [node for node in root if node.tag.split("}")[-1] == "Applications"]
+            groups = [node for node in root if node.tag == f"{{{MANIFEST_NS}}}Applications"]
             if len(groups) != 1:
                 raise ValueError("exactly one Applications element required")
-            applications = [node for node in groups[0] if node.tag.split("}")[-1] == "Application"]
+            applications = [node for node in groups[0] if node.tag == f"{{{MANIFEST_NS}}}Application"]
             if not applications:
                 raise ValueError("MSIX declares no application executable")
             for application in applications:
@@ -100,9 +104,9 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                     if stream.read(2) != b"MZ":
                         raise ValueError("application executable lacks MZ header")
             result["payload_executables_verified"] = True
-        if root.tag.split("}")[-1] != "Package":
+        if root.tag != f"{{{MANIFEST_NS}}}Package":
             raise ValueError("invalid MSIX package manifest root")
-        identities = [node for node in root if node.tag.split("}")[-1] == "Identity"]
+        identities = [node for node in root if node.tag == f"{{{MANIFEST_NS}}}Identity"]
         if len(identities) != 1:
             raise ValueError("exactly one manifest Identity required")
         actual = identities[0].attrib
