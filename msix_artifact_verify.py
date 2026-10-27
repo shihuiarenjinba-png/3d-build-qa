@@ -16,6 +16,7 @@ import zipfile
 from qa_gate import inspect
 from msix_zip_guard import validate_archive_paths
 from msix_blockmap_guard import validate_blockmap
+from msix_content_types_guard import validate_content_types
 
 SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
 MAX_PACKAGE_BYTES = 8 * 1024**3
@@ -31,7 +32,7 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
     result = {
         "status": "BLOCKED", "errors": [], "artifact_bytes_verified": False,
         "manifest_identity_matched": False, "payload_executables_verified": False,
-        "blockmap_verified": False,
+        "blockmap_verified": False, "content_types_verified": False,
         "official_identity_verified": False,
         "github_provenance_verified": False, "windows_launch_verified": False,
         "signature_verified": False, "submission_authorized": False,
@@ -73,6 +74,8 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                         pass
             # CRC alone does not detect a consistent but forged BlockMap.
             # Bind every ordinary package file to its declared 64-KiB hashes.
+            validate_content_types(archive)
+            result["content_types_verified"] = True
             validate_blockmap(archive)
             result["blockmap_verified"] = True
             names = archive.namelist()

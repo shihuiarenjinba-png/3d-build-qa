@@ -17,6 +17,15 @@ MANIFEST = (b'<?xml version="1.0" encoding="utf-8"?>'
             b'EntryPoint="Windows.FullTrustApplication"/></Applications>'
             b'</Package>')
 BLOCKMAP_NS = "http://schemas.microsoft.com/appx/2010/blockmap"
+CONTENT_TYPES = (b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                 b'<Default Extension="exe" ContentType="application/octet-stream"/>'
+                 b'<Default Extension="xml" ContentType="application/xml"/>'
+                 b'<Default Extension="png" ContentType="image/png"/>'
+                 b'<Default Extension="txt" ContentType="text/plain"/>'
+                 b'<Default Extension="bin" ContentType="application/octet-stream"/>'
+                 b'<Override PartName="/AppxManifest.xml" ContentType="application/vnd.ms-appx.manifest+xml"/>'
+                 b'<Override PartName="/AppxBlockMap.xml" ContentType="application/vnd.ms-appx.blockmap+xml"/>'
+                 b'</Types>')
 IDENTITY = {"reviewed": True, "source": "partner_center", "store_id": "9PTEST3D0001",
             "name": "Example.ThreeD", "publisher": "CN=Verified", "version": "1.0.0.0"}
 
@@ -40,8 +49,10 @@ class ArtifactTests(unittest.TestCase):
         self.make_package()
 
     def make_package(self, manifest=MANIFEST, executable=b"MZmock-game", include_executable=True,
-                     include_blockmap=True, blockmap_mutator=None):
+                     include_blockmap=True, blockmap_mutator=None, content_types=CONTENT_TYPES):
         with zipfile.ZipFile(self.path, "w") as archive:
+            if content_types is not None:
+                archive.writestr("[Content_Types].xml", content_types)
             archive.writestr("AppxManifest.xml", manifest)
             archive.writestr("Assets/icon.png", b"not-a-real-image")
             if include_executable:
@@ -57,7 +68,7 @@ class ArtifactTests(unittest.TestCase):
             "HashMethod": "http://www.w3.org/2001/04/xmlenc#sha256"})
         with zipfile.ZipFile(self.path) as archive, self.path.open("rb") as raw:
             for info in archive.infolist():
-                if info.is_dir() or info.filename == "AppxBlockMap.xml":
+                if info.is_dir() or info.filename in ("AppxBlockMap.xml", "[Content_Types].xml"):
                     continue
                 raw.seek(info.header_offset)
                 header = raw.read(30)
@@ -121,6 +132,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_blockmap_two_uncompressed_blocks_pass_synthetic(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/large.bin", b"A" * 65537)
@@ -132,6 +144,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_blockmap_compressed_file_pass_synthetic(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/compressed.txt", b"abc" * 200,
@@ -163,6 +176,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_blockmap_wrong_compressed_size_blocks(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/compressed.txt", b"abc" * 200,
@@ -209,6 +223,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_case_colliding_executable_paths_block(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZfirst")
             archive.writestr("game/GAME.EXE", b"MZsecond")
@@ -288,7 +303,9 @@ class ArtifactTests(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             with zipfile.ZipFile(self.path, "w") as archive:
+                archive.writestr("[Content_Types].xml", CONTENT_TYPES)
                 archive.writestr("AppxManifest.xml", MANIFEST)
+                archive.writestr("[Content_Types].xml", CONTENT_TYPES)
                 archive.writestr("AppxManifest.xml", MANIFEST)
         self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
@@ -316,6 +333,7 @@ class ArtifactTests(unittest.TestCase):
 
     def _assert_rejects_added_zip_entry(self, entry, data=b"unsafe"):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr(entry, data)
@@ -349,6 +367,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_case_colliding_unrelated_assets_block(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/ICON.png", b"one")
@@ -359,6 +378,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_file_directory_ancestor_collision_blocks(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets", b"file")
@@ -373,6 +393,7 @@ class ArtifactTests(unittest.TestCase):
         link.create_system = 3
         link.external_attr = (stat.S_IFLNK | 0o777) << 16
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr(link, "target")
@@ -388,6 +409,7 @@ class ArtifactTests(unittest.TestCase):
                 entry.create_system = 3
                 entry.external_attr = (file_type | 0o600) << 16
                 with zipfile.ZipFile(self.path, "w") as archive:
+                    archive.writestr("[Content_Types].xml", CONTENT_TYPES)
                     archive.writestr("AppxManifest.xml", MANIFEST)
                     archive.writestr("Game/game.exe", b"MZgame")
                     archive.writestr(entry, b"not-a-regular-file")
@@ -405,6 +427,7 @@ class ArtifactTests(unittest.TestCase):
                 entry.create_system = 3
                 entry.external_attr = (file_type | 0o700) << 16
                 with zipfile.ZipFile(self.path, "w") as archive:
+                    archive.writestr("[Content_Types].xml", CONTENT_TYPES)
                     archive.writestr("AppxManifest.xml", MANIFEST)
                     archive.writestr("Game/game.exe", b"MZgame")
                     archive.writestr(entry, b"" if filename.endswith("/") else b"data")
@@ -415,6 +438,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_zip_expansion_bomb_blocks(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/zeros.bin", b"\0" * (8 * 1024 * 1024),
@@ -425,12 +449,68 @@ class ArtifactTests(unittest.TestCase):
 
     def test_normal_explicit_directory_entry_is_allowed(self):
         with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/", b"")
             archive.writestr("Game/game.exe", b"MZgame")
         self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "EVIDENCE_REVIEW")
+
+
+    def test_missing_content_types_blocks(self):
+        self.make_package(content_types=None)
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["content_types_verified"])
+
+    def test_forged_content_types_namespace_blocks(self):
+        forged = CONTENT_TYPES.replace(
+            b"http://schemas.openxmlformats.org/package/2006/content-types", b"urn:forged")
+        self.make_package(content_types=forged)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_missing_content_type_for_executable_blocks(self):
+        forged = CONTENT_TYPES.replace(b'Extension="exe"', b'Extension="unused"')
+        self.make_package(content_types=forged)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_wrong_manifest_or_blockmap_content_type_blocks(self):
+        cases = (
+            CONTENT_TYPES.replace(b"application/vnd.ms-appx.manifest+xml", b"application/xml"),
+            CONTENT_TYPES.replace(b"application/vnd.ms-appx.blockmap+xml", b"application/xml"),
+        )
+        for forged in cases:
+            with self.subTest(forged=forged):
+                self.make_package(content_types=forged)
+                self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_duplicate_content_type_extension_blocks(self):
+        forged = CONTENT_TYPES.replace(
+            b"</Types>", b'<Default Extension="EXE" ContentType="application/xml"/></Types>')
+        self.make_package(content_types=forged)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_content_type_unknown_override_blocks(self):
+        forged = CONTENT_TYPES.replace(b'PartName="/AppxManifest.xml"',
+                                       b'PartName="/Missing.xml"')
+        self.make_package(content_types=forged)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_content_type_encoded_separator_blocks(self):
+        forged = CONTENT_TYPES.replace(b'PartName="/AppxManifest.xml"',
+                                       b'PartName="/%2FAppxManifest.xml"')
+        self.make_package(content_types=forged)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_content_type_safe_percent_encoded_part_passes(self):
+        safe = CONTENT_TYPES.replace(b'PartName="/AppxManifest.xml"',
+                                     b'PartName="/%41ppxManifest.xml"')
+        self.make_package(content_types=safe)
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertTrue(result["content_types_verified"])
+
 
 
 if __name__ == "__main__":
