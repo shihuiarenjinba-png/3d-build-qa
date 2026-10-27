@@ -55,6 +55,16 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
             raise ValueError("package SHA-256 differs from receipt")
         with zipfile.ZipFile(package) as archive:
             validate_archive_paths(archive)
+            # The package SHA covers the container, not the integrity of its
+            # individual ZIP members. Check CRC/decompression for every entry,
+            # including assets that are not otherwise read by manifest QA.
+            # The path guard above bounds entry count and expanded sizes.
+            for member in archive.infolist():
+                if member.is_dir():
+                    continue
+                with archive.open(member) as stream:
+                    for _ in iter(lambda: stream.read(1024 * 1024), b""):
+                        pass
             names = archive.namelist()
             if names.count("AppxManifest.xml") != 1:
                 raise ValueError("exactly one root AppxManifest.xml required")
