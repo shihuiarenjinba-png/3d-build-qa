@@ -212,13 +212,13 @@ class ArtifactTests(unittest.TestCase):
         # MakeAppx-style pretty-printed XML may contain indentation. Reject
         # unexpected text without rejecting harmless XML whitespace.
         def pretty(root):
-            root.text = "\\n  "
+            root.text = "\n  "
             for file_node in root:
-                file_node.text = "\\n    "
-                file_node.tail = "\\n  "
+                file_node.text = "\n    "
+                file_node.tail = "\n  "
                 for block in file_node:
-                    block.text = "\\n    "
-                    block.tail = "\\n    "
+                    block.text = "\n    "
+                    block.tail = "\n    "
         self.make_package(blockmap_mutator=pretty)
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
         self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
