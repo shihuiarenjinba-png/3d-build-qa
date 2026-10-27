@@ -91,6 +91,8 @@ def main():
                 data_offset = info.header_offset + 30 + name_len + extra_len
                 raw.seek(data_offset)
                 compressed_head = raw.read(8).hex()
+                raw.seek(data_offset + max(0, info.compress_size - 8))
+                compressed_tail = raw.read(8).hex()
                 offset = data_offset + info.compress_size
                 raw.seek(offset)
                 print("ZIP_DESCRIPTOR_DIAGNOSTIC", json.dumps({
@@ -99,6 +101,7 @@ def main():
                     "central_crc": info.CRC, "central_compressed": info.compress_size,
                     "central_uncompressed": info.file_size,
                     "compressed_head": compressed_head,
+                    "compressed_tail": compressed_tail,
                     "descriptor_hex": raw.read(32).hex(),
                 }))
     assert result["status"] == "HOLD", result
