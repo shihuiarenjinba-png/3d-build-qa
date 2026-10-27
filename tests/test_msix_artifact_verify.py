@@ -95,6 +95,51 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("AppxBlockMap.xml", ET.tostring(root, encoding="utf-8"))
 
 
+    def test_makeappx_default_xml_manifest_mime_passes_synthetic(self):
+        # Real MakeAppx 10.0.26100 uses Default(xml)=manifest MIME and
+        # Override(AppxBlockMap.xml)=blockmap MIME.
+        types = CONTENT_TYPES.replace(
+            b'<Default Extension="xml" ContentType="application/xml"/>',
+            b'<Default Extension="xml" ContentType="application/vnd.ms-appx.manifest+xml"/>',
+        ).replace(
+            b'<Override PartName="/AppxManifest.xml" ContentType="application/vnd.ms-appx.manifest+xml"/>',
+            b'',
+        )
+        self.make_package(content_types=types)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
+                         "EVIDENCE_REVIEW")
+
+    def test_makeappx_default_xml_without_blockmap_override_blocks(self):
+        types = CONTENT_TYPES.replace(
+            b'<Default Extension="xml" ContentType="application/xml"/>',
+            b'<Default Extension="xml" ContentType="application/vnd.ms-appx.manifest+xml"/>',
+        ).replace(
+            b'<Override PartName="/AppxManifest.xml" ContentType="application/vnd.ms-appx.manifest+xml"/>',
+            b'',
+        ).replace(
+            b'<Override PartName="/AppxBlockMap.xml" ContentType="application/vnd.ms-appx.blockmap+xml"/>',
+            b'',
+        )
+        self.make_package(content_types=types)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
+                         "BLOCKED")
+
+    def test_makeappx_b4_ignorable_namespace_passes_synthetic(self):
+        def add_b4(root):
+            root.set("IgnorableNamespaces", "b4")
+            root.set("xmlns:b4", "http://schemas.microsoft.com/appx/2021/blockmap")
+        self.make_package(blockmap_mutator=add_b4)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
+                         "EVIDENCE_REVIEW")
+
+    def test_makeappx_b4_spoofed_namespace_blocks(self):
+        def spoof(root):
+            root.set("IgnorableNamespaces", "b4")
+            root.set("xmlns:b4", "urn:forged")
+        self.make_package(blockmap_mutator=spoof)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
+                         "BLOCKED")
+
     def test_missing_blockmap_blocks(self):
         self.make_package(include_blockmap=False)
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
