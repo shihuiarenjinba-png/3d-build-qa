@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 from qa_gate import inspect
+from msix_zip_guard import validate_archive_paths
 
 SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
 MAX_PACKAGE_BYTES = 8 * 1024**3
@@ -53,6 +54,7 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         if digest.hexdigest() != claimed.lower():
             raise ValueError("package SHA-256 differs from receipt")
         with zipfile.ZipFile(package) as archive:
+            validate_archive_paths(archive)
             names = archive.namelist()
             if names.count("AppxManifest.xml") != 1:
                 raise ValueError("exactly one root AppxManifest.xml required")
