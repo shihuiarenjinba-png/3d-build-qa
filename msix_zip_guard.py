@@ -16,6 +16,10 @@ MAX_EXPANSION_RATIO = 1000
 MAX_PATH_LENGTH = 240
 RESERVED = {"con", "prn", "aux", "nul", "conin$", "conout$"}
 RESERVED.update(f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10))
+# Win32 also treats superscript 1, 2 and 3 as COM/LPT device digits.
+# See Microsoft naming conventions; casefold alone does not fold these.
+RESERVED.update(f"{prefix}{number}" for prefix in ("com", "lpt")
+                for number in ("\u00b9", "\u00b2", "\u00b3"))
 INVALID = re.compile(r'[<>:"|?*\x00-\x1f]')
 
 
