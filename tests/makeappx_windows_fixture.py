@@ -80,6 +80,8 @@ def main():
     print(json.dumps(evidence, indent=2))
     if result["status"] != "HOLD":
         with zipfile.ZipFile(package) as archive, package.open("rb") as raw:
+            print("MAKEAPPX_CONTENT_TYPES", archive.read("[Content_Types].xml").decode())
+            print("MAKEAPPX_BLOCKMAP", archive.read("AppxBlockMap.xml").decode())
             for info in archive.infolist():
                 raw.seek(info.header_offset)
                 header = raw.read(30)
