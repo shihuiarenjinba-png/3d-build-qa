@@ -173,6 +173,41 @@ class ArtifactTests(unittest.TestCase):
                 result = verify_msix(receipt(self.sha), self.path, IDENTITY)
                 self.assertEqual(result["status"], "BLOCKED", result)
 
+    def test_blockmap_unexpected_metadata_attributes_block(self):
+        # Unknown XML metadata is not part of the declared BlockMap schema.
+        # A matching digest must not make schema-invalid metadata acceptable.
+        cases = ("root", "file", "block")
+        for target in cases:
+            with self.subTest(target=target):
+                def tamper(root):
+                    if target == "root":
+                        node = root
+                    elif target == "file":
+                        node = root.find(f"{{{BLOCKMAP_NS}}}File")
+                    else:
+                        node = root.find(f"{{{BLOCKMAP_NS}}}File").find(
+                            f"{{{BLOCKMAP_NS}}}Block")
+                    node.set("Unexpected", "injected")
+                self.make_package(blockmap_mutator=tamper)
+                result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+
+    def test_blockmap_nonwhitespace_xml_text_blocks(self):
+        for target in ("root", "file", "block"):
+            with self.subTest(target=target):
+                def tamper(root):
+                    if target == "root":
+                        node = root
+                    elif target == "file":
+                        node = root.find(f"{{{BLOCKMAP_NS}}}File")
+                    else:
+                        node = root.find(f"{{{BLOCKMAP_NS}}}File").find(
+                            f"{{{BLOCKMAP_NS}}}Block")
+                    node.text = "unexpected payload text"
+                self.make_package(blockmap_mutator=tamper)
+                result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+
     def test_blockmap_wrong_lfh_size_blocks(self):
         def tamper(root):
             root.find(f"{{{BLOCKMAP_NS}}}File").set("LfhSize", "30")
