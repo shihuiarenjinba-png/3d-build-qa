@@ -140,6 +140,32 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
                          "BLOCKED")
 
+    def test_makeappx_b4_whole_file_hash_passes_synthetic(self):
+        b4 = "http://schemas.microsoft.com/appx/2021/blockmap"
+        def add_hash(root):
+            root.set("IgnorableNamespaces", "b4")
+            root.set("xmlns:b4", b4)
+            file_node = next(n for n in root if n.get("Name") == "Assets\\icon.png")
+            ET.SubElement(file_node, f"{{{b4}}}FileHash", {
+                "Hash": base64.b64encode(hashlib.sha256(b"not-a-real-image").digest()).decode()
+            })
+        self.make_package(blockmap_mutator=add_hash)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
+                         "EVIDENCE_REVIEW")
+
+    def test_makeappx_b4_forged_whole_file_hash_blocks(self):
+        b4 = "http://schemas.microsoft.com/appx/2021/blockmap"
+        def forge_hash(root):
+            root.set("IgnorableNamespaces", "b4")
+            root.set("xmlns:b4", b4)
+            file_node = next(n for n in root if n.get("Name") == "Assets\\icon.png")
+            ET.SubElement(file_node, f"{{{b4}}}FileHash", {
+                "Hash": base64.b64encode(b"\x00" * 32).decode()
+            })
+        self.make_package(blockmap_mutator=forge_hash)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"],
+                         "BLOCKED")
+
     def test_missing_blockmap_blocks(self):
         self.make_package(include_blockmap=False)
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
