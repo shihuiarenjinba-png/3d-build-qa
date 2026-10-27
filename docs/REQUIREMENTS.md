@@ -25,3 +25,27 @@ and bounded uncompressed size/expansion ratio. A failure is **BLOCKED**, not
 EVIDENCE_REVIEW. These tests use synthetic ZIP fixtures only, not a produced
 3D MSIX. They do not authenticate official Partner Center Identity, validate
 AppxBlockMap/signatures, install the package, or prove GPU/gameplay QA.
+
+
+## AppxBlockMap structural and SHA-256 gate (2026-10-27)
+
+The byte verifier now **requires** a root `AppxBlockMap.xml` and checks its
+canonical Microsoft block-map XML namespace, SHA-256 HashMethod, complete
+non-footprint file coverage, unique File entries, uncompressed file Size,
+actual ZIP local-file-header (LfhSize), the exact 64-KiB block count and
+each block's SHA-256 against decompressed package bytes. For DEFLATE entries
+the declared positive compressed Block Sizes must sum to the ZIP member's
+compressed size. Invalid, missing, mismatched or spoofed block maps are
+**BLOCKED**. Parsing and reads are bounded; this follows the Windows path
+and ZIP CRC/decompression guards.
+
+The regression fixtures include omitted files, missing/forged block maps,
+wrong hashes, wrong XML namespace, duplicate files, altered LFH/size/hash
+metadata, multi-block uncompressed content and single-block DEFLATE.
+The fixtures are **not** MakeAppx-produced, signed, installable or commercial
+MSIX packages. This check does **not** authenticate the block-map signature,
+Partner Center, GitHub provenance, WACK, Windows installation or GPU/gameplay.
+Even a successful check remains EVIDENCE_REVIEW, not product PASS.
+
+Specification: https://learn.microsoft.com/en-us/uwp/schemas/blockmapschema/element-block
+and https://learn.microsoft.com/en-us/uwp/schemas/blockmapschema/element-file
