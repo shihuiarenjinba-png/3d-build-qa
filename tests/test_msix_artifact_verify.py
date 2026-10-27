@@ -156,6 +156,23 @@ class ArtifactTests(unittest.TestCase):
         self.assertTrue(result["blockmap_verified"])
 
 
+    def test_blockmap_noncanonical_name_aliases_block(self):
+        # A BlockMap name must match the ZIP member's canonical Windows
+        # spelling, not merely casefold/replace to the same lookup key.
+        # These two aliases currently pass the older blockmap verifier.
+        aliases = ("Assets/icon.png", "assets\\icon.png", "Assets\\\\icon.png")
+        for alias in aliases:
+            with self.subTest(alias=alias):
+                def tamper(root):
+                    for node in root:
+                        if node.get("Name") == "Assets\\icon.png":
+                            node.set("Name", alias)
+                            return
+                    self.fail("missing fixture asset")
+                self.make_package(blockmap_mutator=tamper)
+                result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+
     def test_blockmap_wrong_lfh_size_blocks(self):
         def tamper(root):
             root.find(f"{{{BLOCKMAP_NS}}}File").set("LfhSize", "30")
