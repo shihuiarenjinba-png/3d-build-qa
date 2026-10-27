@@ -37,6 +37,14 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
     files: set[str] = set()
     directories: set[str] = set()
     total = 0
+    # MakeAppx may use a ZIP64 descriptor even when central sizes fit 32 bits.
+    # Determine the exact descriptor span from adjacent local headers.
+    offsets = sorted(info.header_offset for info in infos)
+    if len(set(offsets)) != len(offsets):
+        raise ValueError("overlapping ZIP local header offsets")
+    next_offset = {offset: (offsets[i + 1] if i + 1 < len(offsets)
+                            else archive.start_dir)
+                   for i, offset in enumerate(offsets)}
 
     for info in infos:
         # zipfile.open verifies local names only for members it reads. Empty
@@ -131,16 +139,24 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
             )
             descriptor_offset = (info.header_offset + 30 + name_size +
                                  extra_size + info.compress_size)
+            span = next_offset[info.header_offset] - descriptor_offset
+            if span not in (12, 16, 20, 24):
+                raise ValueError("invalid ZIP data descriptor length")
             archive.fp.seek(descriptor_offset)
-            descriptor = archive.fp.read(24 if zip64_descriptor else 16)
-            if descriptor[:4] == b"PK\x07\x08":
-                start = 4
-            else:
-                start = 0
-            fmt = "<IQQ" if zip64_descriptor else "<III"
-            required = struct.calcsize(fmt)
-            if len(descriptor) < start + required:
+            descriptor = archive.fp.read(span)
+            if len(descriptor) != span:
                 raise ValueError("truncated ZIP data descriptor")
+            signed = descriptor[:4] == b"PK\x07\x08"
+            start = 4 if signed else 0
+            payload_length = span - start
+            if ((signed and span not in (16, 24)) or
+                    (not signed and span not in (12, 20))):
+                raise ValueError("invalid ZIP data descriptor signature/length")
+            if zip64_descriptor and payload_length != 20:
+                raise ValueError("ZIP64 data descriptor required")
+            # APPNOTE allows 64-bit descriptors without local ZIP64 sentinels.
+            # MakeAppx 10.0.26100 emits exactly this form.
+            fmt = "<IQQ" if payload_length == 20 else "<III"
             crc, compressed, uncompressed = struct.unpack_from(fmt, descriptor, start)
             if (crc != info.CRC or compressed != info.compress_size or
                     uncompressed != info.file_size):
