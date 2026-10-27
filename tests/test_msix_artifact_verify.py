@@ -120,6 +120,29 @@ class ArtifactTests(unittest.TestCase):
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
         self.assertEqual(result["status"], "BLOCKED")
 
+    def test_forged_manifest_namespaces_block(self):
+        # Local-name-only XML matching used to accept these spoofed elements.
+        # MSIX Package/Identity/Applications/Application must be in the
+        # Windows foundation manifest namespace, not a lookalike namespace.
+        cases = {
+            "package": MANIFEST.replace(
+                b'xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"',
+                b'xmlns="urn:forged"'),
+            "identity": MANIFEST.replace(
+                b'<Identity ', b'<Identity xmlns="urn:forged" '),
+            "applications": MANIFEST.replace(
+                b'<Applications>', b'<Applications xmlns="urn:forged">'),
+            "application": MANIFEST.replace(
+                b'<Application ', b'<Application xmlns="urn:forged" '),
+        }
+        for field, manifest in cases.items():
+            with self.subTest(field=field):
+                self.assertNotEqual(manifest, MANIFEST)
+                self.make_package(manifest=manifest)
+                result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+                self.assertFalse(result["artifact_bytes_verified"])
+
     def test_missing_manifest_blocks(self):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("not-a-manifest.txt", "x")
