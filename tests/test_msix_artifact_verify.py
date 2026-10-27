@@ -567,6 +567,54 @@ class ArtifactTests(unittest.TestCase):
                 self.assertEqual(result["status"], "BLOCKED", result)
                 self.assertFalse(result["artifact_bytes_verified"])
 
+
+    def _make_zip64_local_size_package(self):
+        # force_zip64 writes genuine ZIP64 size sentinels/extra fields even
+        # for a tiny member. This is an offline fixture, not MakeAppx output.
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Assets/icon.png", b"not-a-real-image")
+            with archive.open("Game/game.exe", "w", force_zip64=True) as stream:
+                stream.write(b"MZmock-game")
+        self.add_blockmap()
+        with zipfile.ZipFile(self.path) as archive:
+            offset = archive.getinfo("Game/game.exe").header_offset
+        raw = bytearray(self.path.read_bytes())
+        self.assertEqual(struct.unpack_from("<II", raw, offset + 18),
+                         (0xFFFFFFFF, 0xFFFFFFFF))
+        name_length, extra_length = struct.unpack_from("<HH", raw, offset + 26)
+        extra_start = offset + 30 + name_length
+        self.assertGreaterEqual(extra_length, 20)
+        self.assertEqual(struct.unpack_from("<HH", raw, extra_start), (1, 16))
+        return raw, extra_start
+
+    def test_valid_zip64_local_sizes_allowed(self):
+        self._make_zip64_local_size_package()
+        digest = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        result = verify_msix(receipt(digest), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+
+    def test_forged_zip64_local_sizes_blocked(self):
+        # Python zipfile trusts central-directory sizes and still reads the
+        # member when the local ZIP64 extra sizes are forged.
+        for variant in ("uncompressed", "compressed", "missing_extra"):
+            with self.subTest(variant=variant):
+                raw, extra_start = self._make_zip64_local_size_package()
+                if variant == "missing_extra":
+                    struct.pack_into("<H", raw, extra_start, 2)
+                else:
+                    field_offset = extra_start + (4 if variant == "uncompressed" else 12)
+                    current = struct.unpack_from("<Q", raw, field_offset)[0]
+                    struct.pack_into("<Q", raw, field_offset, current + 1)
+                self.path.write_bytes(raw)
+                with zipfile.ZipFile(self.path) as archive:
+                    self.assertEqual(archive.read("Game/game.exe"), b"MZmock-game")
+                digest = hashlib.sha256(raw).hexdigest()
+                result = verify_msix(receipt(digest), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+                self.assertFalse(result["artifact_bytes_verified"])
+
     def test_normal_explicit_directory_entry_is_allowed(self):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("[Content_Types].xml", CONTENT_TYPES)
