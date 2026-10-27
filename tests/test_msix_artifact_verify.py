@@ -160,6 +160,13 @@ class ArtifactTests(unittest.TestCase):
     def test_windows_reserved_device_name_blocks(self):
         self._assert_rejects_added_zip_entry("Assets/CON.txt")
 
+    def test_windows_superscript_com_lpt_device_names_block(self):
+        # Win32 reserves COM¹/²/³ and LPT¹/²/³ as device names,
+        # including when an extension is present.
+        for name in ("COM\u00b9.txt", "com\u00b3.bin", "LPT\u00b2.log"):
+            with self.subTest(name=name):
+                self._assert_rejects_added_zip_entry("Assets/" + name)
+
     def test_windows_alternate_data_stream_blocks(self):
         self._assert_rejects_added_zip_entry("Assets/image.png:stream")
 
