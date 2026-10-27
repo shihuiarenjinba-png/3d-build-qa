@@ -58,11 +58,16 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
         root = ET.fromstring(stream.read(MAX_BLOCKMAP_BYTES + 1))
     if root.tag != f"{{{NS}}}BlockMap" or root.get("HashMethod") != HASH_METHOD:
         raise ValueError("invalid AppxBlockMap namespace or hash method")
+    if set(root.attrib) != {"HashMethod"} or (root.text or "").strip() or (root.tail or "").strip():
+        raise ValueError("unexpected AppxBlockMap root metadata")
     expected = set(names) - EXCLUDED
     seen: set[str] = set()
     for file_node in root:
         if file_node.tag != f"{{{NS}}}File":
             raise ValueError("unexpected AppxBlockMap child")
+        if (set(file_node.attrib) != {"Name", "Size", "LfhSize"} or
+                (file_node.text or "").strip() or (file_node.tail or "").strip()):
+            raise ValueError("unexpected AppxBlockMap File metadata")
         raw_name = file_node.get("Name")
         if not raw_name or raw_name.startswith(("/", "\\")):
             raise ValueError("invalid AppxBlockMap file name")
@@ -92,6 +97,11 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
             for index, block in enumerate(blocks):
                 if block.tag != f"{{{NS}}}Block" or list(block):
                     raise ValueError("invalid AppxBlockMap Block element")
+                expected_attrs = ({"Hash", "Size"} if entry.compress_type == zipfile.ZIP_DEFLATED
+                                  else {"Hash"})
+                if (set(block.attrib) != expected_attrs or
+                        (block.text or "").strip() or (block.tail or "").strip()):
+                    raise ValueError("unexpected AppxBlockMap Block metadata")
                 length = min(BLOCK_SIZE, size - index * BLOCK_SIZE)
                 data = stream.read(length)
                 if len(data) != length:
