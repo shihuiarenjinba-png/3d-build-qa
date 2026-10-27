@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import stat
+import struct
 import zipfile
 
 MAX_ENTRIES = 20_000
@@ -38,6 +39,27 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
     total = 0
 
     for info in infos:
+        # zipfile.open verifies local names only for members it reads. Empty
+        # directory entries are skipped by the CRC pass, so validate every
+        # local header against the central directory before trusting paths.
+        archive.fp.seek(info.header_offset)
+        local = archive.fp.read(30)
+        if len(local) != 30 or local[:4] != b"PK\x03\x04":
+            raise ValueError("invalid ZIP local file header")
+        local_flags, local_method = struct.unpack_from("<HH", local, 6)
+        name_size, extra_size = struct.unpack_from("<HH", local, 26)
+        if local_flags != info.flag_bits or local_method != info.compress_type:
+            raise ValueError("ZIP local/central header metadata mismatch")
+        raw_name = archive.fp.read(name_size)
+        try:
+            central_name = info.filename.encode(
+                "utf-8" if local_flags & 0x800 else "cp437")
+        except UnicodeEncodeError:
+            raise ValueError("invalid ZIP central filename encoding") from None
+        if raw_name != central_name:
+            raise ValueError("ZIP local/central header filename mismatch")
+        if len(archive.fp.read(extra_size)) != extra_size:
+            raise ValueError("truncated ZIP local header extra field")
         name = info.filename
         if not isinstance(name, str) or len(name) > MAX_PATH_LENGTH:
             raise ValueError("invalid MSIX ZIP entry path length")

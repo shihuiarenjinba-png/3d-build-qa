@@ -447,6 +447,41 @@ class ArtifactTests(unittest.TestCase):
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
+    def _package_with_explicit_directory(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("[Content_Types].xml", CONTENT_TYPES)
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/", b"")
+            archive.writestr("Game/game.exe", b"MZgame")
+        self.add_blockmap()
+        with zipfile.ZipFile(self.path) as archive:
+            return archive.getinfo("Game/").header_offset
+
+    def test_local_header_directory_filename_mismatch_blocks(self):
+        # The central directory still says Game/, but the local header
+        # says Same/. zipfile does not read directory payloads by default.
+        offset = self._package_with_explicit_directory()
+        raw = bytearray(self.path.read_bytes())
+        self.assertEqual(raw[offset + 30:offset + 35], b"Game/")
+        raw[offset + 30:offset + 35] = b"Same/"
+        self.path.write_bytes(raw)
+        sha = hashlib.sha256(raw).hexdigest()
+        result = verify_msix(receipt(sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["artifact_bytes_verified"])
+
+    def test_local_header_directory_method_mismatch_blocks(self):
+        # A forged local compression method must not bypass the ZIP guard
+        # merely because this directory has no file bytes to CRC-check.
+        offset = self._package_with_explicit_directory()
+        raw = bytearray(self.path.read_bytes())
+        struct.pack_into("<H", raw, offset + 8, zipfile.ZIP_DEFLATED)
+        self.path.write_bytes(raw)
+        sha = hashlib.sha256(raw).hexdigest()
+        result = verify_msix(receipt(sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["artifact_bytes_verified"])
+
     def test_normal_explicit_directory_entry_is_allowed(self):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("[Content_Types].xml", CONTENT_TYPES)
