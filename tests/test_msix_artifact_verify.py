@@ -142,6 +142,39 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
         self.assertTrue(result["blockmap_verified"])
 
+
+    def test_blockmap_wrong_lfh_size_blocks(self):
+        def tamper(root):
+            root.find(f"{{{BLOCKMAP_NS}}}File").set("LfhSize", "30")
+        self.make_package(blockmap_mutator=tamper)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_blockmap_duplicate_file_blocks(self):
+        def tamper(root):
+            root.append(ET.fromstring(ET.tostring(root[0])))
+        self.make_package(blockmap_mutator=tamper)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_blockmap_unsupported_hash_method_blocks(self):
+        def tamper(root):
+            root.set("HashMethod", "urn:untrusted-hash")
+        self.make_package(blockmap_mutator=tamper)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_blockmap_wrong_compressed_size_blocks(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr("Assets/compressed.txt", b"abc" * 200,
+                             compress_type=zipfile.ZIP_DEFLATED)
+        def tamper(root):
+            for node in root:
+                if node.get("Name") == "Assets\\compressed.txt":
+                    node[0].set("Size", "1")
+        self.add_blockmap(tamper)
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
+
     def test_matching_bytes_and_identity_still_need_external_review(self):
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
         self.assertEqual(result["status"], "EVIDENCE_REVIEW")
