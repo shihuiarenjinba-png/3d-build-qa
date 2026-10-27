@@ -199,6 +199,37 @@ class ArtifactTests(unittest.TestCase):
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
+    def test_unix_special_file_entries_block(self):
+        import stat
+        for file_type in (stat.S_IFCHR, stat.S_IFBLK, stat.S_IFIFO, stat.S_IFSOCK):
+            with self.subTest(file_type=file_type):
+                entry = zipfile.ZipInfo("Assets/special")
+                entry.create_system = 3
+                entry.external_attr = (file_type | 0o600) << 16
+                with zipfile.ZipFile(self.path, "w") as archive:
+                    archive.writestr("AppxManifest.xml", MANIFEST)
+                    archive.writestr("Game/game.exe", b"MZgame")
+                    archive.writestr(entry, b"not-a-regular-file")
+                sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+                result = verify_msix(receipt(sha), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+
+    def test_zip_file_type_disagrees_with_directory_marker(self):
+        import stat
+        for filename, file_type in (("Assets/looks-like-file", stat.S_IFDIR),
+                                    ("Assets/looks-like-directory/", stat.S_IFREG)):
+            with self.subTest(filename=filename):
+                entry = zipfile.ZipInfo(filename)
+                entry.create_system = 3
+                entry.external_attr = (file_type | 0o700) << 16
+                with zipfile.ZipFile(self.path, "w") as archive:
+                    archive.writestr("AppxManifest.xml", MANIFEST)
+                    archive.writestr("Game/game.exe", b"MZgame")
+                    archive.writestr(entry, b"" if filename.endswith("/") else b"data")
+                sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+                result = verify_msix(receipt(sha), self.path, IDENTITY)
+                self.assertEqual(result["status"], "BLOCKED", result)
+
     def test_zip_expansion_bomb_blocks(self):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("AppxManifest.xml", MANIFEST)
