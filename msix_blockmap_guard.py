@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import io
 import struct
 import xml.etree.ElementTree as ET
 import zipfile
@@ -55,10 +56,23 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
     if not 0 < info.file_size <= MAX_BLOCKMAP_BYTES:
         raise ValueError("AppxBlockMap.xml size out of range")
     with archive.open(info) as stream:
-        root = ET.fromstring(stream.read(MAX_BLOCKMAP_BYTES + 1))
+        raw_xml = stream.read(MAX_BLOCKMAP_BYTES + 1)
+    root = ET.fromstring(raw_xml)
+    declared_ns = dict(pair for _, pair in ET.iterparse(
+        io.BytesIO(raw_xml), events=("start-ns",)))
     if root.tag != f"{{{NS}}}BlockMap" or root.get("HashMethod") != HASH_METHOD:
         raise ValueError("invalid AppxBlockMap namespace or hash method")
-    if set(root.attrib) != {"HashMethod"} or (root.text or "").strip() or (root.tail or "").strip():
+    # Modern MakeAppx declares the b4 blockmap namespace as ignorable.
+    # Permit only the documented binding, not arbitrary metadata or spoofing.
+    attrs = set(root.attrib)
+    ignorable = root.get("IgnorableNamespaces")
+    if ignorable is not None and (
+            ignorable != "b4" or
+            declared_ns.get("b4") != "http://schemas.microsoft.com/appx/2021/blockmap"):
+        raise ValueError("invalid AppxBlockMap ignorable namespace")
+    if (attrs != ({"HashMethod", "IgnorableNamespaces"} if ignorable is not None
+                  else {"HashMethod"}) or
+            (root.text or "").strip() or (root.tail or "").strip()):
         raise ValueError("unexpected AppxBlockMap root metadata")
     expected = set(names) - EXCLUDED
     seen: set[str] = set()
