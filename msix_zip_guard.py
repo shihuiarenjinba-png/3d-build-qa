@@ -57,8 +57,17 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
             files.add(folded)
 
         mode = info.external_attr >> 16
-        if stat.S_IFMT(mode) == stat.S_IFLNK:
+        file_type = stat.S_IFMT(mode)
+        # Windows packages must not smuggle Unix device nodes, FIFOs or
+        # sockets. A missing Unix type is normal for DOS-origin ZIP entries.
+        if file_type == stat.S_IFLNK:
             raise ValueError("symlink ZIP entry")
+        if file_type not in (0, stat.S_IFREG, stat.S_IFDIR):
+            raise ValueError("unsupported special-file ZIP entry")
+        if file_type == stat.S_IFDIR and not is_dir:
+            raise ValueError("directory type without trailing slash")
+        if file_type == stat.S_IFREG and is_dir:
+            raise ValueError("regular-file type on directory entry")
         if info.flag_bits & 1:
             raise ValueError("encrypted ZIP entry")
         if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
