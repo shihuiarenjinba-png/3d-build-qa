@@ -18,6 +18,7 @@ BLOCK_SIZE = 65536
 MAX_BLOCKMAP_BYTES = 32 * 1024 * 1024
 NS = "http://schemas.microsoft.com/appx/2010/blockmap"
 HASH_METHOD = "http://www.w3.org/2001/04/xmlenc#sha256"
+B4_NS = "http://schemas.microsoft.com/appx/2021/blockmap"
 # MSIX footprint/signing metadata is not described as ordinary content files.
 EXCLUDED = {
     "appxblockmap.xml", "[content_types].xml", "appxsignature.p7x",
@@ -68,7 +69,7 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
     ignorable = root.get("IgnorableNamespaces")
     if ignorable is not None and (
             ignorable != "b4" or
-            declared_ns.get("b4") != "http://schemas.microsoft.com/appx/2021/blockmap"):
+            declared_ns.get("b4") != B4_NS):
         raise ValueError("invalid AppxBlockMap ignorable namespace")
     if (attrs != ({"HashMethod", "IgnorableNamespaces"} if ignorable is not None
                   else {"HashMethod"}) or
@@ -103,10 +104,23 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
         if lfh_size != _local_header_size(archive, entry):
             raise ValueError("AppxBlockMap local header size mismatch")
         blocks = list(file_node)
+        # MakeAppx 2021 BlockMap adds an optional whole-file b4:FileHash
+        # after the per-64KiB Block entries. It is an integrity check,
+        # not an extra data block; verify the actual full-file SHA-256.
+        whole_file_node = None
+        if blocks and blocks[-1].tag == f"{{{B4_NS}}}FileHash":
+            if ignorable != "b4":
+                raise ValueError("unapproved AppxBlockMap FileHash namespace")
+            whole_file_node = blocks.pop()
+            if (set(whole_file_node.attrib) != {"Hash"} or list(whole_file_node)
+                    or (whole_file_node.text or "").strip()
+                    or (whole_file_node.tail or "").strip()):
+                raise ValueError("invalid AppxBlockMap FileHash metadata")
         count = (size + BLOCK_SIZE - 1) // BLOCK_SIZE
         if len(blocks) != count:
             raise ValueError("AppxBlockMap block count mismatch")
         compressed_total = 0
+        full_digest = hashlib.sha256()
         with archive.open(entry) as stream:
             for index, block in enumerate(blocks):
                 if block.tag != f"{{{NS}}}Block" or list(block):
@@ -120,6 +134,7 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
                 data = stream.read(length)
                 if len(data) != length:
                     raise ValueError("AppxBlockMap truncated payload block")
+                full_digest.update(data)
                 encoded = block.get("Hash")
                 try:
                     expected_hash = base64.b64decode(encoded, validate=True)
@@ -137,6 +152,14 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
                     raise ValueError("uncompressed AppxBlockMap Block has Size")
             if stream.read(1):
                 raise ValueError("AppxBlockMap trailing payload data")
+        if whole_file_node is not None:
+            try:
+                claimed_file_hash = base64.b64decode(
+                    whole_file_node.get("Hash"), validate=True)
+            except (TypeError, ValueError, binascii.Error):
+                raise ValueError("invalid AppxBlockMap FileHash") from None
+            if len(claimed_file_hash) != 32 or claimed_file_hash != full_digest.digest():
+                raise ValueError("AppxBlockMap whole-file SHA-256 mismatch")
         if entry.compress_type == zipfile.ZIP_DEFLATED and compressed_total != entry.compress_size:
             # MakeAppx 10.0.26100 emits a final two-byte DEFLATE
             # empty-block terminator (03 00) outside the Block Size
