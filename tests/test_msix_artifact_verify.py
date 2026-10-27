@@ -144,5 +144,78 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(main(args + ["--approved-identity", str(identity_path)]), 0)
 
 
+    def _assert_rejects_added_zip_entry(self, entry, data=b"unsafe"):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr(entry, data)
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        result = verify_msix(receipt(sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["artifact_bytes_verified"])
+
+    def test_unrelated_traversal_entry_blocks_entire_msix(self):
+        self._assert_rejects_added_zip_entry("Assets/../evil.txt")
+
+    def test_windows_reserved_device_name_blocks(self):
+        self._assert_rejects_added_zip_entry("Assets/CON.txt")
+
+    def test_windows_alternate_data_stream_blocks(self):
+        self._assert_rejects_added_zip_entry("Assets/image.png:stream")
+
+    def test_backslash_archive_entry_blocks(self):
+        self._assert_rejects_added_zip_entry("Assets\\other.png")
+
+    def test_trailing_space_path_blocks(self):
+        self._assert_rejects_added_zip_entry("Assets/bad .png ")
+
+    def test_case_colliding_unrelated_assets_block(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr("Assets/ICON.png", b"one")
+            archive.writestr("assets/icon.PNG", b"two")
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_file_directory_ancestor_collision_blocks(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr("Assets", b"file")
+            archive.writestr("Assets/icon.png", b"image")
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_symlink_entry_blocks(self):
+        import stat
+        link = zipfile.ZipInfo("Assets/link")
+        link.create_system = 3
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr(link, "target")
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_zip_expansion_bomb_blocks(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr("Assets/zeros.bin", b"\0" * (8 * 1024 * 1024),
+                             compress_type=zipfile.ZIP_DEFLATED)
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_normal_explicit_directory_entry_is_allowed(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/", b"")
+            archive.writestr("Game/game.exe", b"MZgame")
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "EVIDENCE_REVIEW")
+
+
 if __name__ == "__main__":
     unittest.main()
