@@ -16,7 +16,7 @@ MAX_EXPANSION_RATIO = 1000
 MAX_PATH_LENGTH = 240
 RESERVED = {"con", "prn", "aux", "nul", "conin$", "conout$"}
 RESERVED.update(f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10))
-INVALID = re.compile(r'[<>:"\\|?*\\x00-\\x1f]')
+INVALID = re.compile(r'[<>:"|?*\x00-\x1f]')
 
 
 def validate_archive_paths(archive: zipfile.ZipFile) -> None:
