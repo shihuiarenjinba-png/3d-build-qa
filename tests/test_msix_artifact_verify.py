@@ -208,6 +208,21 @@ class ArtifactTests(unittest.TestCase):
                 result = verify_msix(receipt(self.sha), self.path, IDENTITY)
                 self.assertEqual(result["status"], "BLOCKED", result)
 
+    def test_blockmap_whitespace_formatting_stays_accepted_synthetic(self):
+        # MakeAppx-style pretty-printed XML may contain indentation. Reject
+        # unexpected text without rejecting harmless XML whitespace.
+        def pretty(root):
+            root.text = "\\n  "
+            for file_node in root:
+                file_node.text = "\\n    "
+                file_node.tail = "\\n  "
+                for block in file_node:
+                    block.text = "\\n    "
+                    block.tail = "\\n    "
+        self.make_package(blockmap_mutator=pretty)
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+
     def test_blockmap_wrong_lfh_size_blocks(self):
         def tamper(root):
             root.find(f"{{{BLOCKMAP_NS}}}File").set("LfhSize", "30")

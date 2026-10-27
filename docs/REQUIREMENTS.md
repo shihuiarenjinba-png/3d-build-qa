@@ -49,3 +49,13 @@ Even a successful check remains EVIDENCE_REVIEW, not product PASS.
 
 Specification: https://learn.microsoft.com/en-us/uwp/schemas/blockmapschema/element-block
 and https://learn.microsoft.com/en-us/uwp/schemas/blockmapschema/element-file
+
+## BlockMap XML metadata strictness (2026-10-27)
+
+The offline byte guard rejects undeclared attributes on BlockMap, File and Block,
+and non-whitespace text in those elements. The expected attributes are
+BlockMap.HashMethod, File.Name/Size/LfhSize and Block.Hash (plus Block.Size
+for DEFLATE). Ordinary XML indentation is accepted. Regression CI first
+reproduced six false accepts, then passed after the fail-closed fix.
+This is **synthetic contract QA only**: real MakeAppx-produced package compatibility,
+Windows installation, authenticated Store Identity and GPU/gameplay remain HOLD.
