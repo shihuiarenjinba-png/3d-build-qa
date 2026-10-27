@@ -125,7 +125,7 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
                                  extra_size + info.compress_size)
             archive.fp.seek(descriptor_offset)
             descriptor = archive.fp.read(24 if zip64_descriptor else 16)
-            if descriptor[:4] == b"PK\\x07\\x08":
+            if descriptor[:4] == b"PK\x07\x08":
                 start = 4
             else:
                 start = 0

@@ -709,7 +709,7 @@ class ArtifactTests(unittest.TestCase):
             raw = self.path.read_bytes()
             name_length, extra_length = struct.unpack_from("<HH", raw, offset + 26)
             descriptor_offset = offset + 30 + name_length + extra_length + info.compress_size
-            self.assertEqual(raw[descriptor_offset:descriptor_offset + 4], b"PK\\x07\\x08")
+            self.assertEqual(raw[descriptor_offset:descriptor_offset + 4], b"PK\x07\x08")
         return descriptor_offset
 
     def test_data_descriptor_32_and_zip64_pass_synthetic(self):
