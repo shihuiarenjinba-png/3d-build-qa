@@ -138,6 +138,15 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
             if stream.read(1):
                 raise ValueError("AppxBlockMap trailing payload data")
         if entry.compress_type == zipfile.ZIP_DEFLATED and compressed_total != entry.compress_size:
-            raise ValueError("AppxBlockMap compressed Size total mismatch")
+            # MakeAppx 10.0.26100 emits a final two-byte DEFLATE
+            # empty-block terminator (03 00) outside the Block Size
+            # accounting. Only allow the exact observed two-byte trailer,
+            # never a general size tolerance.
+            if compressed_total + 2 != entry.compress_size:
+                raise ValueError("AppxBlockMap compressed Size total mismatch")
+            archive.fp.seek(entry.header_offset + _local_header_size(archive, entry)
+                            + entry.compress_size - 2)
+            if archive.fp.read(2) != b"\\x03\\x00":
+                raise ValueError("AppxBlockMap compressed Size trailer mismatch")
     if seen != expected:
         raise ValueError("AppxBlockMap omits package files")
