@@ -73,8 +73,43 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
             raise ValueError("invalid ZIP central filename encoding") from None
         if raw_name != central_name:
             raise ValueError("ZIP local/central header filename mismatch")
-        if len(archive.fp.read(extra_size)) != extra_size:
+        raw_extra = archive.fp.read(extra_size)
+        if len(raw_extra) != extra_size:
             raise ValueError("truncated ZIP local header extra field")
+        # A 0xffffffff local size is not a wildcard: the corresponding
+        # 64-bit value in the local ZIP64 extra field must match the central
+        # directory. Python zipfile reads the central sizes and otherwise
+        # accepts forged local ZIP64 values with intact member bytes.
+        if not (local_flags & 0x0008) and (
+                local_compressed == 0xFFFFFFFF or local_uncompressed == 0xFFFFFFFF):
+            cursor = 0
+            zip64_sizes = None
+            while cursor < len(raw_extra):
+                if len(raw_extra) - cursor < 4:
+                    raise ValueError("truncated ZIP local extra field header")
+                field_id, field_length = struct.unpack_from("<HH", raw_extra, cursor)
+                cursor += 4
+                if field_length > len(raw_extra) - cursor:
+                    raise ValueError("truncated ZIP local extra field body")
+                if field_id == 0x0001:
+                    if zip64_sizes is not None:
+                        raise ValueError("duplicate ZIP64 local extra field")
+                    zip64_sizes = raw_extra[cursor:cursor + field_length]
+                cursor += field_length
+            if zip64_sizes is None:
+                raise ValueError("missing ZIP64 local size extra field")
+            position = 0
+            for sentinel, central_size, label in (
+                    (local_uncompressed, info.file_size, "uncompressed"),
+                    (local_compressed, info.compress_size, "compressed")):
+                if sentinel != 0xFFFFFFFF:
+                    continue
+                if len(zip64_sizes) - position < 8:
+                    raise ValueError("truncated ZIP64 local " + label + " size")
+                local_size = struct.unpack_from("<Q", zip64_sizes, position)[0]
+                if local_size != central_size:
+                    raise ValueError("ZIP64 local/central " + label + " size mismatch")
+                position += 8
         name = info.filename
         if not isinstance(name, str) or len(name) > MAX_PATH_LENGTH:
             raise ValueError("invalid MSIX ZIP entry path length")
