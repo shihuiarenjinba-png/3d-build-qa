@@ -115,7 +115,15 @@ def validate_archive_paths(archive: zipfile.ZipFile) -> None:
         # CRC against the central directory but does not inspect this
         # descriptor, so contradictory metadata must be rejected explicitly.
         if local_flags & 0x0008:
-            local_compressed, local_uncompressed = struct.unpack_from("<II", local, 18)
+            # APPNOTE bit 3 moves CRC/sizes into the descriptor: local
+            # placeholders must be zero (or ZIP64 size sentinels). Python
+            # zipfile ignores forged local values when central metadata and
+            # payload CRC are intact, so reject the ambiguity explicitly.
+            local_crc, local_compressed, local_uncompressed = struct.unpack_from("<III", local, 14)
+            if (local_crc != 0 or
+                    local_compressed not in (0, 0xFFFFFFFF) or
+                    local_uncompressed not in (0, 0xFFFFFFFF)):
+                raise ValueError("ZIP bit-3 local header has contradictory CRC or size")
             zip64_descriptor = (
                 local_compressed == 0xFFFFFFFF or
                 local_uncompressed == 0xFFFFFFFF or
