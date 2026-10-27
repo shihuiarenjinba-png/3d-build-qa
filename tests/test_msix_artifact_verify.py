@@ -93,6 +93,18 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED")
         self.assertFalse(result["artifact_bytes_verified"])
 
+    def test_corrupt_unrelated_asset_crc_blocks(self):
+        # A recomputed package SHA alone cannot prove ZIP member integrity.
+        # A broken asset must fail even when manifest and EXE remain readable.
+        raw = self.path.read_bytes()
+        marker = b"not-a-real-image"
+        self.assertEqual(raw.count(marker), 1)
+        self.path.write_bytes(raw.replace(marker, b"X" + marker[1:], 1))
+        digest = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        result = verify_msix(receipt(digest), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["artifact_bytes_verified"])
+
     def test_wrong_manifest_identity_blocks(self):
         wrong = dict(IDENTITY, name="Different.Game")
         result = verify_msix(receipt(self.sha), self.path, wrong)
