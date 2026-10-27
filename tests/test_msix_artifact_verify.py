@@ -23,6 +23,7 @@ CONTENT_TYPES = (b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/
                  b'<Default Extension="png" ContentType="image/png"/>'
                  b'<Default Extension="txt" ContentType="text/plain"/>'
                  b'<Default Extension="bin" ContentType="application/octet-stream"/>'
+                 b'<Default Extension="pck" ContentType="application/octet-stream"/>'
                  b'<Override PartName="/AppxManifest.xml" ContentType="application/vnd.ms-appx.manifest+xml"/>'
                  b'<Override PartName="/AppxBlockMap.xml" ContentType="application/vnd.ms-appx.blockmap+xml"/>'
                  b'</Types>')
@@ -49,7 +50,8 @@ class ArtifactTests(unittest.TestCase):
         self.make_package()
 
     def make_package(self, manifest=MANIFEST, executable=b"MZmock-game", include_executable=True,
-                     include_blockmap=True, blockmap_mutator=None, content_types=CONTENT_TYPES):
+                     include_blockmap=True, blockmap_mutator=None, content_types=CONTENT_TYPES,
+                     pck=None):
         with zipfile.ZipFile(self.path, "w") as archive:
             if content_types is not None:
                 archive.writestr("[Content_Types].xml", content_types)
@@ -57,6 +59,8 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("Assets/icon.png", b"not-a-real-image")
             if include_executable:
                 archive.writestr("Game/game.exe", executable)
+            if pck is not None:
+                archive.writestr("Game/game.pck", pck)
         if include_blockmap:
             self.add_blockmap(blockmap_mutator)
         self.sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
@@ -336,6 +340,68 @@ class ArtifactTests(unittest.TestCase):
         for key in ("official_identity_verified", "github_provenance_verified",
                     "windows_launch_verified", "signature_verified", "submission_authorized"):
             self.assertFalse(result[key])
+
+
+    def test_independently_pinned_external_godot_exe_pck_hashes_match(self):
+        exe = b"MZmock-game"
+        pck = b"GDPCmock-resources"
+        self.make_package(executable=exe, pck=pck)
+        evidence = {
+            "exe_path": "Game/game.exe", "exe_sha256": hashlib.sha256(exe).hexdigest(),
+            "embed_pck": False, "pck_path": "Game/game.pck",
+            "pck_sha256": hashlib.sha256(pck).hexdigest(),
+        }
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY, evidence)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertTrue(result["godot_export_bytes_matched"])
+        self.assertFalse(result["github_provenance_verified"])
+
+    def test_missing_external_godot_pck_blocks_even_when_msix_hash_matches(self):
+        exe = b"MZmock-game"
+        evidence = {
+            "exe_path": "Game/game.exe", "exe_sha256": hashlib.sha256(exe).hexdigest(),
+            "embed_pck": False, "pck_path": "Game/game.pck",
+            "pck_sha256": hashlib.sha256(b"GDPCmock-resources").hexdigest(),
+        }
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY, evidence)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["godot_export_bytes_matched"])
+
+    def test_repacked_tampered_pck_rejected_against_independent_export_hash(self):
+        exe = b"MZmock-game"
+        original = b"GDPCoriginal"
+        self.make_package(executable=exe, pck=b"GDPCtampered")
+        evidence = {
+            "exe_path": "Game/game.exe", "exe_sha256": hashlib.sha256(exe).hexdigest(),
+            "embed_pck": False, "pck_path": "Game/game.pck",
+            "pck_sha256": hashlib.sha256(original).hexdigest(),
+        }
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY, evidence)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertIn("payload SHA-256 mismatch", result["errors"][0])
+
+    def test_embedded_godot_pck_exe_only_hash_match(self):
+        exe = b"MZmock-game"
+        evidence = {"exe_path": "Game/game.exe",
+                    "exe_sha256": hashlib.sha256(exe).hexdigest(),
+                    "embed_pck": True}
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY, evidence)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertTrue(result["godot_export_bytes_matched"])
+
+    def test_godot_export_manifest_path_mismatch_blocks(self):
+        exe = b"MZmock-game"
+        evidence = {"exe_path": "Game/other.exe",
+                    "exe_sha256": hashlib.sha256(exe).hexdigest(),
+                    "embed_pck": True}
+        self.assertEqual(
+            verify_msix(receipt(self.sha), self.path, IDENTITY, evidence)["status"],
+            "BLOCKED")
+
+    def test_godot_export_evidence_is_optional_but_never_claimed_without_it(self):
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW")
+        self.assertFalse(result["godot_export_bytes_matched"])
 
     def test_missing_declared_executable_blocks(self):
         self.make_package(include_executable=False)

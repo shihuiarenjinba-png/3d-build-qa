@@ -27,7 +27,58 @@ MANIFEST_NS = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"
 
 
 
-def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = None) -> dict:
+
+def verify_expected_godot_export(archive: zipfile.ZipFile, executable_paths: list[str],
+                                 evidence: dict) -> None:
+    """Match packaged Godot EXE/PCK bytes to separately supplied export digests.
+
+    Evidence must come from an independently pinned export. Matching its
+    claims does not authenticate GitHub provenance or prove Windows launch.
+    """
+    if not isinstance(evidence, dict) or type(evidence.get("embed_pck")) is not bool:
+        raise ValueError("invalid expected Godot export evidence")
+    embedded = evidence["embed_pck"]
+    keys = {"exe_path", "exe_sha256", "embed_pck"}
+    if not embedded:
+        keys |= {"pck_path", "pck_sha256"}
+    if set(evidence) != keys:
+        raise ValueError("incomplete or unexpected Godot export evidence fields")
+    exe_path = evidence["exe_path"]
+    if not isinstance(exe_path, str) or exe_path not in executable_paths:
+        raise ValueError("Godot export executable differs from manifest")
+    if (not isinstance(evidence["exe_sha256"], str) or
+            not SHA256.fullmatch(evidence["exe_sha256"])):
+        raise ValueError("invalid Godot export EXE SHA-256")
+    expected = [(exe_path, evidence["exe_sha256"], b"MZ")]
+    if not embedded:
+        pck_path = evidence["pck_path"]
+        if (not isinstance(pck_path, str) or
+                pck_path != exe_path[:-4] + ".pck"):
+            raise ValueError("Godot external PCK path differs from executable stem")
+        if (not isinstance(evidence["pck_sha256"], str) or
+                not SHA256.fullmatch(evidence["pck_sha256"])):
+            raise ValueError("invalid Godot export PCK SHA-256")
+        expected.append((pck_path, evidence["pck_sha256"], b"GDPC"))
+    for path, claimed_sha, magic in expected:
+        try:
+            info = archive.getinfo(path)
+        except KeyError:
+            raise ValueError("expected Godot export member missing: " + path) from None
+        if info.is_dir() or info.file_size <= len(magic):
+            raise ValueError("expected Godot export member is empty")
+        digest = hashlib.sha256()
+        with archive.open(info) as stream:
+            if stream.read(len(magic)) != magic:
+                raise ValueError("invalid Godot export member header: " + path)
+            digest.update(magic)
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        if digest.hexdigest() != claimed_sha.lower():
+            raise ValueError("Godot export payload SHA-256 mismatch: " + path)
+
+
+def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = None,
+                expected_godot_export: dict | None = None) -> dict:
     """Inspect actual bytes without extracting archive entries or trusting receipt claims."""
     result = {
         "status": "BLOCKED", "errors": [], "artifact_bytes_verified": False,
@@ -36,6 +87,7 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         "official_identity_verified": False,
         "github_provenance_verified": False, "windows_launch_verified": False,
         "signature_verified": False, "submission_authorized": False,
+        "godot_export_bytes_matched": False,
     }
     shape = inspect(receipt)
     if shape["status"] != "EVIDENCE_REVIEW":
@@ -93,6 +145,7 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
             applications = [node for node in groups[0] if node.tag == f"{{{MANIFEST_NS}}}Application"]
             if not applications:
                 raise ValueError("MSIX declares no application executable")
+            executable_paths = []
             for application in applications:
                 executable = application.attrib.get("Executable", "")
                 normalized = executable.replace("\\", "/")
@@ -101,6 +154,7 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                         any(not part or part in (".", "..") or ":" in part
                             for part in components)):
                     raise ValueError("unsafe or invalid application executable path")
+                executable_paths.append(normalized)
                 matches = [info for info in archive.infolist()
                            if info.filename.casefold() == normalized.casefold()]
                 if len(matches) != 1:
@@ -113,6 +167,9 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                     if stream.read(2) != b"MZ":
                         raise ValueError("application executable lacks MZ header")
             result["payload_executables_verified"] = True
+            if expected_godot_export is not None:
+                verify_expected_godot_export(archive, executable_paths, expected_godot_export)
+                result["godot_export_bytes_matched"] = True
         if root.tag != f"{{{MANIFEST_NS}}}Package":
             raise ValueError("invalid MSIX package manifest root")
         identities = [node for node in root if node.tag == f"{{{MANIFEST_NS}}}Identity"]
@@ -151,12 +208,15 @@ def main(argv=None) -> int:
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--package", required=True, type=Path)
     parser.add_argument("--approved-identity", type=Path)
+    parser.add_argument("--expected-godot-export", type=Path)
     args = parser.parse_args(argv)
     try:
         receipt = json.loads(args.receipt.read_text(encoding="utf-8"))
         identity = (json.loads(args.approved_identity.read_text(encoding="utf-8"))
                     if args.approved_identity else None)
-        result = verify_msix(receipt, args.package, identity)
+        export = (json.loads(args.expected_godot_export.read_text(encoding="utf-8"))
+                  if args.expected_godot_export else None)
+        result = verify_msix(receipt, args.package, identity, export)
     except (OSError, ValueError) as exc:
         result = {"status": "BLOCKED", "errors": [type(exc).__name__],
                   "artifact_bytes_verified": False, "submission_authorized": False}
