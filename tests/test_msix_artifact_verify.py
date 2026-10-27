@@ -1,4 +1,7 @@
+import base64
 import hashlib
+import struct
+import xml.etree.ElementTree as ET
 import json
 from pathlib import Path
 import tempfile
@@ -13,6 +16,7 @@ MANIFEST = (b'<?xml version="1.0" encoding="utf-8"?>'
             b'<Applications><Application Id="Game" Executable="Game/game.exe" '
             b'EntryPoint="Windows.FullTrustApplication"/></Applications>'
             b'</Package>')
+BLOCKMAP_NS = "http://schemas.microsoft.com/appx/2010/blockmap"
 IDENTITY = {"reviewed": True, "source": "partner_center", "store_id": "9PTEST3D0001",
             "name": "Example.ThreeD", "publisher": "CN=Verified", "version": "1.0.0.0"}
 
@@ -35,13 +39,108 @@ class ArtifactTests(unittest.TestCase):
         self.path = Path(self.tmp.name) / "demo.msix"
         self.make_package()
 
-    def make_package(self, manifest=MANIFEST, executable=b"MZmock-game", include_executable=True):
+    def make_package(self, manifest=MANIFEST, executable=b"MZmock-game", include_executable=True,
+                     include_blockmap=True, blockmap_mutator=None):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("AppxManifest.xml", manifest)
             archive.writestr("Assets/icon.png", b"not-a-real-image")
             if include_executable:
                 archive.writestr("Game/game.exe", executable)
+        if include_blockmap:
+            self.add_blockmap(blockmap_mutator)
         self.sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+
+
+    def add_blockmap(self, mutate=None):
+        """Create an offline-only block map with correct ZIP local header sizes."""
+        root = ET.Element(f"{{{BLOCKMAP_NS}}}BlockMap", {
+            "HashMethod": "http://www.w3.org/2001/04/xmlenc#sha256"})
+        with zipfile.ZipFile(self.path) as archive, self.path.open("rb") as raw:
+            for info in archive.infolist():
+                if info.is_dir() or info.filename == "AppxBlockMap.xml":
+                    continue
+                raw.seek(info.header_offset)
+                header = raw.read(30)
+                name_len, extra_len = struct.unpack_from("<HH", header, 26)
+                node = ET.SubElement(root, f"{{{BLOCKMAP_NS}}}File", {
+                    "Name": info.filename.replace("/", "\\"),
+                    "Size": str(info.file_size),
+                    "LfhSize": str(30 + name_len + extra_len)})
+                with archive.open(info) as stream:
+                    blocks = []
+                    while True:
+                        data = stream.read(65536)
+                        if not data:
+                            break
+                        blocks.append(ET.SubElement(node, f"{{{BLOCKMAP_NS}}}Block", {
+                            "Hash": base64.b64encode(hashlib.sha256(data).digest()).decode()}))
+                    if info.compress_type == zipfile.ZIP_DEFLATED:
+                        for i, block in enumerate(blocks):
+                            block.set("Size", str(1 if i < len(blocks) - 1
+                                                  else info.compress_size - (len(blocks) - 1)))
+        if mutate:
+            mutate(root)
+        with zipfile.ZipFile(self.path, "a") as archive:
+            archive.writestr("AppxBlockMap.xml", ET.tostring(root, encoding="utf-8"))
+
+
+    def test_missing_blockmap_blocks(self):
+        self.make_package(include_blockmap=False)
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["blockmap_verified"])
+
+    def test_forged_blockmap_hash_blocks(self):
+        def tamper(root):
+            block = root.find(f"{{{BLOCKMAP_NS}}}File").find(f"{{{BLOCKMAP_NS}}}Block")
+            block.set("Hash", base64.b64encode(b"\x00" * 32).decode())
+        self.make_package(blockmap_mutator=tamper)
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["blockmap_verified"])
+
+    def test_blockmap_omitted_asset_blocks(self):
+        def tamper(root):
+            for node in list(root):
+                if node.get("Name") == "Assets\\icon.png":
+                    root.remove(node)
+        self.make_package(blockmap_mutator=tamper)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_blockmap_wrong_namespace_blocks(self):
+        def tamper(root):
+            root.tag = "{urn:forged}BlockMap"
+        self.make_package(blockmap_mutator=tamper)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_blockmap_wrong_size_blocks(self):
+        def tamper(root):
+            root.find(f"{{{BLOCKMAP_NS}}}File").set("Size", "999999")
+        self.make_package(blockmap_mutator=tamper)
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, IDENTITY)["status"], "BLOCKED")
+
+    def test_blockmap_two_uncompressed_blocks_pass_synthetic(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr("Assets/large.bin", b"A" * 65537)
+        self.add_blockmap()
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        result = verify_msix(receipt(sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertTrue(result["blockmap_verified"])
+
+    def test_blockmap_compressed_file_pass_synthetic(self):
+        with zipfile.ZipFile(self.path, "w") as archive:
+            archive.writestr("AppxManifest.xml", MANIFEST)
+            archive.writestr("Game/game.exe", b"MZgame")
+            archive.writestr("Assets/compressed.txt", b"abc" * 200,
+                             compress_type=zipfile.ZIP_DEFLATED)
+        self.add_blockmap()
+        sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        result = verify_msix(receipt(sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertTrue(result["blockmap_verified"])
 
     def test_matching_bytes_and_identity_still_need_external_review(self):
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
@@ -80,6 +179,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZfirst")
             archive.writestr("game/GAME.EXE", b"MZsecond")
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -146,6 +246,7 @@ class ArtifactTests(unittest.TestCase):
     def test_missing_manifest_blocks(self):
         with zipfile.ZipFile(self.path, "w") as archive:
             archive.writestr("not-a-manifest.txt", "x")
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -156,6 +257,7 @@ class ArtifactTests(unittest.TestCase):
             with zipfile.ZipFile(self.path, "w") as archive:
                 archive.writestr("AppxManifest.xml", MANIFEST)
                 archive.writestr("AppxManifest.xml", MANIFEST)
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -184,6 +286,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr(entry, data)
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         result = verify_msix(receipt(sha), self.path, IDENTITY)
         self.assertEqual(result["status"], "BLOCKED", result)
@@ -217,6 +320,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/ICON.png", b"one")
             archive.writestr("assets/icon.PNG", b"two")
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -226,6 +330,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets", b"file")
             archive.writestr("Assets/icon.png", b"image")
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -238,6 +343,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr(link, "target")
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -252,6 +358,7 @@ class ArtifactTests(unittest.TestCase):
                     archive.writestr("AppxManifest.xml", MANIFEST)
                     archive.writestr("Game/game.exe", b"MZgame")
                     archive.writestr(entry, b"not-a-regular-file")
+                self.add_blockmap()
                 sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
                 result = verify_msix(receipt(sha), self.path, IDENTITY)
                 self.assertEqual(result["status"], "BLOCKED", result)
@@ -268,6 +375,7 @@ class ArtifactTests(unittest.TestCase):
                     archive.writestr("AppxManifest.xml", MANIFEST)
                     archive.writestr("Game/game.exe", b"MZgame")
                     archive.writestr(entry, b"" if filename.endswith("/") else b"data")
+                self.add_blockmap()
                 sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
                 result = verify_msix(receipt(sha), self.path, IDENTITY)
                 self.assertEqual(result["status"], "BLOCKED", result)
@@ -278,6 +386,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("Game/game.exe", b"MZgame")
             archive.writestr("Assets/zeros.bin", b"\0" * (8 * 1024 * 1024),
                              compress_type=zipfile.ZIP_DEFLATED)
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "BLOCKED")
 
@@ -286,6 +395,7 @@ class ArtifactTests(unittest.TestCase):
             archive.writestr("AppxManifest.xml", MANIFEST)
             archive.writestr("Game/", b"")
             archive.writestr("Game/game.exe", b"MZgame")
+        self.add_blockmap()
         sha = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.assertEqual(verify_msix(receipt(sha), self.path, IDENTITY)["status"], "EVIDENCE_REVIEW")
 
