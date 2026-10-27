@@ -7,12 +7,14 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import struct
+import zipfile
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from msix_artifact_verify import verify_msix
 
-MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
+MANIFEST = r"""<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
@@ -76,6 +78,23 @@ def main():
     }
     (out / "fixture-evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
     print(json.dumps(evidence, indent=2))
+    if result["status"] != "HOLD":
+        with zipfile.ZipFile(package) as archive, package.open("rb") as raw:
+            for info in archive.infolist():
+                raw.seek(info.header_offset)
+                header = raw.read(30)
+                flags = struct.unpack_from("<H", header, 6)[0]
+                crc, packed, unpacked = struct.unpack_from("<III", header, 14)
+                name_len, extra_len = struct.unpack_from("<HH", header, 26)
+                offset = info.header_offset + 30 + name_len + extra_len + info.compress_size
+                raw.seek(offset)
+                print("ZIP_DESCRIPTOR_DIAGNOSTIC", json.dumps({
+                    "name": info.filename, "flags": flags, "local_crc": crc,
+                    "local_compressed": packed, "local_uncompressed": unpacked,
+                    "central_crc": info.CRC, "central_compressed": info.compress_size,
+                    "central_uncompressed": info.file_size,
+                    "descriptor_hex": raw.read(32).hex(),
+                }))
     assert result["status"] == "HOLD", result
     for key in ("artifact_bytes_verified", "content_types_verified",
                 "blockmap_verified", "payload_executables_verified"):
