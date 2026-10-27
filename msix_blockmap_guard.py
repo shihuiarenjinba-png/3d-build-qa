@@ -146,7 +146,7 @@ def validate_blockmap(archive: zipfile.ZipFile) -> None:
                 raise ValueError("AppxBlockMap compressed Size total mismatch")
             archive.fp.seek(entry.header_offset + _local_header_size(archive, entry)
                             + entry.compress_size - 2)
-            if archive.fp.read(2) != b"\\x03\\x00":
+            if archive.fp.read(2) != b"\x03\x00":
                 raise ValueError("AppxBlockMap compressed Size trailer mismatch")
     if seen != expected:
         raise ValueError("AppxBlockMap omits package files")
