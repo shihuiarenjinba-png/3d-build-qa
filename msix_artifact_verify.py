@@ -224,8 +224,6 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         has_request_binding = claimed_request is not None
         if has_source_binding != has_request_binding:
             raise ValueError("incomplete source/request revision binding")
-        if has_source_binding:
-            result["revision_binding_verified"] = True
         for key in ("name", "publisher", "version", "store_id"):
             if not isinstance(approved_identity.get(key), str) or not approved_identity[key]:
                 raise ValueError("approved identity missing " + key)
@@ -233,6 +231,9 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                for field in ("Name", "Publisher", "Version")):
             raise ValueError("MSIX manifest identity differs from approved record")
         result["manifest_identity_matched"] = True
+        # Only expose the correlation flag after the complete manifest and
+        # approved identity have also matched. A BLOCKED result stays false.
+        result["revision_binding_verified"] = has_source_binding
         result["status"] = "EVIDENCE_REVIEW"
         return result
     except (OSError, ValueError, zipfile.BadZipFile, ET.ParseError, RuntimeError) as exc:
