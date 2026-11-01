@@ -182,7 +182,7 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         # A MakeAppx fixture is byte-valid but cannot be promoted as a Store
         # product even if someone supplies a matching self-declared identity.
         # The real Prism Sentinel unsigned QA artifact uses these exact markers.
-        display_names = [node.text or "" for node in root
+        display_names = [child.text or "" for node in root
                          if node.tag == f"{{{MANIFEST_NS}}}Properties"
                          for child in node
                          if child.tag == f"{{{MANIFEST_NS}}}DisplayName"]
