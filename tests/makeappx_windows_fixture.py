@@ -143,7 +143,7 @@ def main():
     assert result["status"] == "BLOCKED", result
     assert any("fixture-only" in error for error in result["errors"]), result
     assert result["artifact_bytes_verified"] is False
-    for key in ("artifact_bytes_verified", "content_types_verified",
+    for key in ("content_types_verified",
                 "blockmap_verified", "payload_executables_verified",
                 "godot_export_bytes_matched"):
         assert result[key] is True, (key, result)
