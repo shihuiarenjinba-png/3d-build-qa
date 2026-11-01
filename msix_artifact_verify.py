@@ -88,6 +88,8 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         "github_provenance_verified": False, "windows_launch_verified": False,
         "signature_verified": False, "submission_authorized": False,
         "godot_export_bytes_matched": False,
+        # This is a correlation check, NOT official Partner Center verification.
+        "revision_binding_verified": False,
     }
     shape = inspect(receipt)
     if shape["status"] != "EVIDENCE_REVIEW":
@@ -214,6 +216,16 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         claimed_request = approved_identity.get("request_id")
         if claimed_request is not None and claimed_request != receipt["request_id"]:
             raise ValueError("Partner Center identity belongs to a different request_id")
+        # A partially bound historical identity must not be accepted as
+        # evidence for a new Sentinel source revision. Legacy identity-only
+        # records remain reviewable, but their revision flag stays false.
+        has_source_binding = any(approved_identity.get(key) is not None
+                                 for key in ("source_sha", "verified_source_sha", "expected_head_sha"))
+        has_request_binding = claimed_request is not None
+        if has_source_binding != has_request_binding:
+            raise ValueError("incomplete source/request revision binding")
+        if has_source_binding:
+            result["revision_binding_verified"] = True
         for key in ("name", "publisher", "version", "store_id"):
             if not isinstance(approved_identity.get(key), str) or not approved_identity[key]:
                 raise ValueError("approved identity missing " + key)
