@@ -114,7 +114,7 @@ def main():
     }
     (out / "fixture-evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
     print(json.dumps(evidence, indent=2))
-    if result["status"] != "HOLD":
+    if result["status"] != "BLOCKED":
         with zipfile.ZipFile(package) as archive, package.open("rb") as raw:
             print("MAKEAPPX_CONTENT_TYPES", archive.read("[Content_Types].xml").decode())
             print("MAKEAPPX_BLOCKMAP", archive.read("AppxBlockMap.xml").decode())
@@ -140,7 +140,9 @@ def main():
                     "compressed_tail": compressed_tail,
                     "descriptor_hex": raw.read(32).hex(),
                 }))
-    assert result["status"] == "HOLD", result
+    assert result["status"] == "BLOCKED", result
+    assert any("fixture-only" in error for error in result["errors"]), result
+    assert result["artifact_bytes_verified"] is False
     for key in ("artifact_bytes_verified", "content_types_verified",
                 "blockmap_verified", "payload_executables_verified",
                 "godot_export_bytes_matched"):
