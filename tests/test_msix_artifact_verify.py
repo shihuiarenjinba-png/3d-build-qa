@@ -928,5 +928,50 @@ class ArtifactTests(unittest.TestCase):
                     self.assertFalse(result["artifact_bytes_verified"])
 
 
+    def test_old_source_identity_is_not_new_revision_approval(self):
+        # Same Store Name/Publisher/Version does not bind a new PCK revision.
+        for field, old in (
+            ("source_sha", "1" * 40),
+            ("verified_source_sha", "1" * 40),
+            ("expected_head_sha", "1" * 40),
+            ("request_id", "3d-prism-route-3d-legacy"),
+        ):
+            with self.subTest(field=field):
+                historical = dict(IDENTITY)
+                historical[field] = old
+                result = verify_msix(receipt(self.sha), self.path, historical)
+                self.assertEqual(result["status"], "BLOCKED", result)
+                self.assertIn("different", " ".join(result["errors"]))
+
+    def test_same_revision_provenance_is_only_evidence_review(self):
+        current = dict(IDENTITY, source_sha="a" * 40,
+                       verified_source_sha="a" * 40,
+                       expected_head_sha="a" * 40,
+                       request_id="three-d-001")
+        result = verify_msix(receipt(self.sha), self.path, current)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertFalse(result["official_identity_verified"])
+        self.assertFalse(result["submission_authorized"])
+
+    def test_fixture_only_identity_cannot_be_promoted(self):
+        # This exact Name/Publisher is present in the real Sentinel
+        # unsigned QA MSIX. A matching forged approved_identity is not enough.
+        fixture = MANIFEST.replace(b"Example.ThreeD", b"Example.ThreeD.Fixture")
+        fixture = fixture.replace(b"CN=Verified", b"CN=Offline QA Fixture")
+        self.make_package(manifest=fixture)
+        claimed = dict(IDENTITY, name="Example.ThreeD.Fixture",
+                       publisher="CN=Offline QA Fixture")
+        result = verify_msix(receipt(self.sha), self.path, claimed)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertIn("fixture-only", " ".join(result["errors"]))
+
+    def test_fixture_publisher_marker_blocks_even_if_name_changes(self):
+        fixture = MANIFEST.replace(b"CN=Verified", b"CN=Offline QA Fixture")
+        self.make_package(manifest=fixture)
+        claimed = dict(IDENTITY, publisher="CN=Offline QA Fixture")
+        self.assertEqual(verify_msix(receipt(self.sha), self.path, claimed)["status"],
+                         "BLOCKED")
+
+
 if __name__ == "__main__":
     unittest.main()
