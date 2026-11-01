@@ -973,5 +973,17 @@ class ArtifactTests(unittest.TestCase):
                          "BLOCKED")
 
 
+    def test_fixture_display_name_marker_blocks_even_with_other_identity(self):
+        fixture = MANIFEST.replace(
+            b'<Applications>',
+            b'<Properties><DisplayName>Offline 3D QA Fixture</DisplayName></Properties>'
+            b'<Applications>',
+        )
+        self.make_package(manifest=fixture)
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertIn("fixture-only", " ".join(result["errors"]))
+
+
 if __name__ == "__main__":
     unittest.main()
