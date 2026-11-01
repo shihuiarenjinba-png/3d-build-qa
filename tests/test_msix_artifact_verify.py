@@ -950,6 +950,26 @@ class ArtifactTests(unittest.TestCase):
                        request_id="three-d-001")
         result = verify_msix(receipt(self.sha), self.path, current)
         self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertTrue(result["revision_binding_verified"])
+        self.assertFalse(result["official_identity_verified"])
+        self.assertFalse(result["submission_authorized"])
+
+    def test_partial_sentinel_revision_binding_blocks(self):
+        # Name/Publisher/Version matching cannot repair a missing source or
+        # request correlation when claiming the newer Sentinel revision.
+        for partial in (dict(IDENTITY, source_sha="a" * 40),
+                        dict(IDENTITY, verified_source_sha="a" * 40),
+                        dict(IDENTITY, request_id="three-d-001")):
+            with self.subTest(partial=sorted(partial)):
+                result = verify_msix(receipt(self.sha), self.path, partial)
+                self.assertEqual(result["status"], "BLOCKED", result)
+                self.assertFalse(result["revision_binding_verified"])
+                self.assertIn("incomplete source/request", " ".join(result["errors"]))
+
+    def test_identity_only_review_never_claims_revision_binding(self):
+        result = verify_msix(receipt(self.sha), self.path, IDENTITY)
+        self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
+        self.assertFalse(result["revision_binding_verified"])
         self.assertFalse(result["official_identity_verified"])
         self.assertFalse(result["submission_authorized"])
 
