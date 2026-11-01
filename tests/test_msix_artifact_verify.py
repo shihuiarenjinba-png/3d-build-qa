@@ -966,6 +966,14 @@ class ArtifactTests(unittest.TestCase):
                 self.assertFalse(result["revision_binding_verified"])
                 self.assertIn("incomplete source/request", " ".join(result["errors"]))
 
+    def test_matched_source_cannot_override_wrong_manifest_identity(self):
+        forged = dict(IDENTITY, source_sha="a" * 40,
+                      request_id="three-d-001", publisher="CN=Wrong")
+        result = verify_msix(receipt(self.sha), self.path, forged)
+        self.assertEqual(result["status"], "BLOCKED", result)
+        self.assertFalse(result["revision_binding_verified"])
+        self.assertFalse(result["manifest_identity_matched"])
+
     def test_identity_only_review_never_claims_revision_binding(self):
         result = verify_msix(receipt(self.sha), self.path, IDENTITY)
         self.assertEqual(result["status"], "EVIDENCE_REVIEW", result)
