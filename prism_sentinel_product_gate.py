@@ -132,3 +132,44 @@ def inspect_product_evidence(audit, *, qa=None, identity=None):
         "local_windows_gate": "DEFERRED_LOCAL_GATE",
         "product_e2e": "HOLD", "store_submission_allowed": False,
     }
+
+
+def _unique_json_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def main(argv=None):
+    """Read-only CLI: exit 2 even for a valid historical HOLD receipt."""
+    import argparse
+    import json
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--audit", required=True, type=Path)
+    parser.add_argument("--qa", type=Path)
+    parser.add_argument("--identity", type=Path)
+    args = parser.parse_args(argv)
+
+    def load(path):
+        require(path.is_file() and not path.is_symlink() and
+                0 < path.stat().st_size <= 65536, "unsafe or missing JSON")
+        return json.loads(path.read_text(encoding="utf-8"),
+                          object_pairs_hook=_unique_json_keys)
+
+    try:
+        result = inspect_product_evidence(
+            load(args.audit), qa=load(args.qa) if args.qa else None,
+            identity=load(args.identity) if args.identity else None)
+    except (OSError, ValueError, UnicodeError, TypeError) as exc:
+        result = {"status": "BLOCKED", "reason": str(exc)[:160],
+                  "product_e2e": "HOLD", "store_submission_allowed": False}
+    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
