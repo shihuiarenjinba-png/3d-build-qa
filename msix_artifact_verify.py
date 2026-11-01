@@ -88,6 +88,8 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         "github_provenance_verified": False, "windows_launch_verified": False,
         "signature_verified": False, "submission_authorized": False,
         "godot_export_bytes_matched": False,
+        # This is a correlation check, NOT official Partner Center verification.
+        "revision_binding_verified": False,
     }
     shape = inspect(receipt)
     if shape["status"] != "EVIDENCE_REVIEW":
@@ -179,6 +181,17 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
         for field in ("Name", "Publisher", "Version"):
             if not actual.get(field):
                 raise ValueError("missing manifest Identity " + field)
+        # A MakeAppx fixture is byte-valid but cannot be promoted as a Store
+        # product even if someone supplies a matching self-declared identity.
+        # The real Prism Sentinel unsigned QA artifact uses these exact markers.
+        display_names = [child.text or "" for node in root
+                         if node.tag == f"{{{MANIFEST_NS}}}Properties"
+                         for child in node
+                         if child.tag == f"{{{MANIFEST_NS}}}DisplayName"]
+        if (actual["Name"] == "Example.ThreeD.Fixture"
+                or actual["Publisher"] == "CN=Offline QA Fixture"
+                or "Offline 3D QA Fixture" in display_names):
+            raise ValueError("fixture-only MSIX identity is not a product package")
         result["artifact_bytes_verified"] = True
         result["manifest_identity"] = {k.lower(): actual[k] for k in ("Name", "Publisher", "Version")}
         if approved_identity is None:
@@ -189,6 +202,28 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                 or approved_identity.get("reviewed") is not True
                 or approved_identity.get("source") != "partner_center"):
             raise ValueError("unreviewed Partner Center identity record")
+        # Historical Partner Center Identity may describe the same Name and
+        # Publisher but a different immutable game revision. Never silently
+        # upgrade old source/request provenance to the current MSIX receipt.
+        for provenance_key in ("source_sha", "verified_source_sha", "expected_head_sha"):
+            claimed_source = approved_identity.get(provenance_key)
+            if claimed_source is not None:
+                if (not isinstance(claimed_source, str)
+                        or not re.fullmatch(r"[0-9a-fA-F]{40}", claimed_source)
+                        or claimed_source.lower() != receipt["source_sha"].lower()):
+                    raise ValueError("Partner Center identity belongs to a different source revision: "
+                                     + provenance_key)
+        claimed_request = approved_identity.get("request_id")
+        if claimed_request is not None and claimed_request != receipt["request_id"]:
+            raise ValueError("Partner Center identity belongs to a different request_id")
+        # A partially bound historical identity must not be accepted as
+        # evidence for a new Sentinel source revision. Legacy identity-only
+        # records remain reviewable, but their revision flag stays false.
+        has_source_binding = any(approved_identity.get(key) is not None
+                                 for key in ("source_sha", "verified_source_sha", "expected_head_sha"))
+        has_request_binding = claimed_request is not None
+        if has_source_binding != has_request_binding:
+            raise ValueError("incomplete source/request revision binding")
         for key in ("name", "publisher", "version", "store_id"):
             if not isinstance(approved_identity.get(key), str) or not approved_identity[key]:
                 raise ValueError("approved identity missing " + key)
@@ -196,6 +231,9 @@ def verify_msix(receipt: dict, package: Path, approved_identity: dict | None = N
                for field in ("Name", "Publisher", "Version")):
             raise ValueError("MSIX manifest identity differs from approved record")
         result["manifest_identity_matched"] = True
+        # Only expose the correlation flag after the complete manifest and
+        # approved identity have also matched. A BLOCKED result stays false.
+        result["revision_binding_verified"] = has_source_binding
         result["status"] = "EVIDENCE_REVIEW"
         return result
     except (OSError, ValueError, zipfile.BadZipFile, ET.ParseError, RuntimeError) as exc:
