@@ -89,7 +89,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
     def test_fixed_new_revision_not_old(self):
         self.assertEqual(REQUEST, '3d-prism-route-3d-' + SOURCE[:12])
         self.assertNotEqual(MEMBERS['candidate.pck'][1], '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03')
-        self.assertEqual(ZIP_SHA, '77e57ba5882d8ae82285c2274b908d525ae20ebd30c099d4801d19c2ed4ca2b4')
+        self.assertEqual(ZIP_SHA, 'fd9081c2519b37714536ad7549832da33c520f561451c05454f15e834b4ef9df')
 
 if __name__ == '__main__':
     unittest.main()
