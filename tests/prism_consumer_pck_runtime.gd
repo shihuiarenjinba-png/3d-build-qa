@@ -57,6 +57,10 @@ func _run() -> void:
     check(game != null and game.remaining == 90.0 and scene.get("onboarding_active"), "first-run guide holds the full 90s clock")
     check(scene.get("onboarding_title").text.contains("90 seconds"), "English first-run goal visible")
     check(scene.get("onboarding_details").text.contains("1 → 2 → 3") and scene.get("onboarding_details").text.contains("Yellow") and scene.get("onboarding_details").text.contains("Orange"), "English first-run guide explains tower, scan and traps")
+    var guide_style = scene.get("onboarding_panel").get_theme_stylebox("panel") as StyleBoxFlat
+    check(guide_style != null and guide_style.bg_color.a >= 0.95 and guide_style.bg_color.r < 0.2, "guide is opaque and not transparent over gameplay")
+    var start_style = scene.get("start_button").get_theme_stylebox("normal") as StyleBoxFlat
+    check(start_style != null and start_style.bg_color.g > 0.4, "Start button is visually emphasized")
     await _screenshot("guide_en")
     scene.call("_toggle_language")
     check(scene.get("onboarding_title").text.contains("90秒") and scene.get("onboarding_details").text.contains("黄色") and scene.get("onboarding_details").text.contains("紫"), "Japanese first-run guide explains tower, scan and traps")
