@@ -123,7 +123,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
          runtime.get('store_submission_allowed') in (None, False) and
          runtime.get('japanese_font_glyphs_available') is True,
          'PCK runtime receipt does not bind new consumer artifact')
-    required = {'first_30s_goal', 'tower_order_1_2_3', 'next_tower_hud',
+    required = {'first_30s_goal', 'bilingual_start_guide', 'clock_frozen_until_start', 'tower_order_1_2_3', 'next_tower_hud',
                 'sentinel_telegraph_and_hit', 'time_and_warp_trap',
                 'pause', 'win', 'timeout', 'restart', 'english_japanese',
                 'board_visible_1024x768'}
@@ -141,7 +141,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
     screenshots = {}
     import struct
     import zlib
-    for name in ('initial', 'scan', 'trap', 'win', 'ja'):
+    for name in ('guide_en', 'guide_ja', 'initial', 'scan', 'trap', 'win', 'ja'):
         path = screenshot_dir / (name + '.png')
         need(path.is_file() and not path.is_symlink(), 'missing runtime screenshot: '+name)
         data = path.read_bytes()
