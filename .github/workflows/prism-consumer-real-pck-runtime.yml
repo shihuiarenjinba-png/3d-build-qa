@@ -135,6 +135,29 @@ jobs:
           assert x['human_real_time_90s'] == 'HOLD'
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
+      - name: Verify two additional timeout and post-defeat retry PCK frames (never human QA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_pr21_timeout_retry_gate.py' -v
+          python prism_pr21_timeout_retry_gate.py \
+            --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
+            --runtime "$RUNNER_TEMP/prism-real-pck/godot-runtime.json" \
+            --baseline-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
+            --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
+            --out "$RUNNER_TEMP/prism-real-pck/pr21-timeout-retry-receipt.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'prism-real-pck'
+          r = json.loads((root / 'pr21-timeout-retry-receipt.json').read_text())
+          assert r['status'] == 'PR21_EXACT_PCK_TIMEOUT_RETRY_TWO_STATES_VERIFIED_NOT_PHYSICAL'
+          assert r['all_software_frame_sha256_count'] == 9
+          assert set(r['new_software_frames_verified']) == {'timeout_ja', 'retry_ja'}
+          assert r['physical_windows_gui'] == 'HOLD'
+          assert r['human_real_time_90s'] == 'HOLD'
+          assert r['sale_ready'] is False and r['store_submission_allowed'] is False
+          PY
       - name: PR21 read-only physical Windows EXE/PCK handoff (exact Factory ZIP CRC and SHA)
         shell: bash
         run: |
@@ -167,6 +190,7 @@ jobs:
             ${{ runner.temp }}/prism-real-pck/godot-runtime.log
             ${{ runner.temp }}/prism-real-pck/pck-runtime-independent-receipt.json
             ${{ runner.temp }}/prism-real-pck/pr21-software-baseline.json
+            ${{ runner.temp }}/prism-real-pck/pr21-timeout-retry-receipt.json
             ${{ runner.temp }}/prism-real-pck/screenshots/*.png
           if-no-files-found: warn
           retention-days: 7
