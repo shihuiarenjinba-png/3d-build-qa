@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "f015db1762fb63696bcca304028871235142bf3d"
-const REQUEST = "3d-prism-route-3d-f015db1762fb"
-const PCK_SHA = "10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9"
+const SOURCE = "066d9f51d58cfecb994665d5c31adb1156c38942"
+const REQUEST = "3d-prism-route-3d-066d9f51d58c"
+const PCK_SHA = "a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -94,6 +94,7 @@ func _run() -> void:
           "actual compiled HUD contrast above readability floor")
     check(scene.get("status_label").text.contains("NEXT Tower 1"), "first-frame next-tower HUD")
     check(scene.get("hint_label").text.contains("1→2→3"), "first-frame ordered goal")
+    check(hint.get_line_count() == 1, "English gameplay hint must fit one line in actual 1024x768 PCK")
     check(scene.get("scan_label").text.contains("warning"), "first-frame Sentinel warning")
     check(scene.get("scan_markers").size() > 0, "real scan lane geometry")
     await _screenshot("initial")
@@ -160,12 +161,13 @@ func _run() -> void:
     check(scene.get("status_label").text.contains("次の塔") and scene.get("hint_label").text.contains("時間切れ"), "Japanese failure and goal")
     scene.call("_restart")
     check(game.status == "playing" and scene.get("hint_label").text.contains("1→2→3"), "Japanese retry instructions")
+    check(hint.get_line_count() == 1, "Japanese gameplay hint must fit one line in actual 1024x768 PCK")
     await _screenshot("ja")
     var japanese_font: Font = scene.get("language_button").get_theme_font("font")
     var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
     check(japanese_glyphs_available, "embedded Japanese glyphs must render from actual PCK")
 
-    var assertions = ["first_30s_goal", "bilingual_start_guide", "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768", "hud_contrast_and_type"]
+    var assertions = ["first_30s_goal", "bilingual_start_guide", "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768", "hud_contrast_and_type", "bilingual_hint_single_line_1024"]
     var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "board_colored_bounds": board_bounds, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
     var file = FileAccess.open(OS.get_environment("PRISM_RUNTIME_RECEIPT"), FileAccess.WRITE)
     check(file != null, "cannot write PCK runtime receipt")
