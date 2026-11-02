@@ -23,6 +23,8 @@ jobs:
           python-version: '3.12'
       - name: Negative boundary regression
         run: python -m unittest discover -s tests -p 'test_prism_consumer_artifact_runtime_gate.py' -v
+      - name: Physical Windows check-only gate negative regression (never SALE_READY)
+        run: python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v
       - name: Verify live Factory artifact identity, source and expiry
         shell: bash
         run: |
