@@ -15,6 +15,21 @@ jobs:
           python-version: '3.12'
       - run: python -m compileall -q qa_gate.py msix_artifact_verify.py msix_zip_guard.py msix_blockmap_guard.py tests
       - run: python -m unittest discover -s tests -v
+      - name: Fail-closed release PCK content gate (historical inventory only)
+        shell: bash
+        run: |
+          set +e
+          python prism_sentinel_release_pck_content_gate.py --historical-inventory evidence/prism-sentinel-pck-resource-inventory-20261102.json --out pck-content-hold.json
+          status=$?
+          set -e
+          test "$status" -eq 2
+          python - <<'PY'
+          import json
+          x=json.load(open("pck-content-hold.json", encoding="utf-8"))
+          assert x["status"] == "RELEASE_PCK_CONTENT_HOLD"
+          assert x["real_factory_bytes_checked_this_run"] is False
+          assert x["store_submission_allowed"] is False
+          PY
       - name: Read-only consume pinned Provisioner-3D real-byte receipt (never Store approval)
         shell: bash
         run: |
@@ -36,6 +51,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_prism_sentinel_provisioner_custody_gate.py -v
       - name: Check Sentinel product differential and unapproved version fail-closed on Windows
         run: python -m unittest discover -s tests -p test_prism_sentinel_product_gate.py -v
+      - name: Check real PCK content hygiene negative fixtures on Windows
+        run: python -m unittest discover -s tests -p test_prism_sentinel_release_pck_content_gate.py -v
       - name: Pack real unsigned MakeAppx fixture and verify ZIP/BlockMap/OPC bytes
         run: python tests/makeappx_windows_fixture.py
       - name: Retain fixture-only evidence (never a sellable product)
