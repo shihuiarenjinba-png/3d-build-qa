@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      FACTORY_ARTIFACT_ID: '13118228531'
-      FACTORY_SOURCE_SHA: 'da6f7c129687922c58c43496da4667ecef903e17'
-      PRISM_EXPECTED_PCK_SHA: '6e04300b176f923c9dda5777c5115af4e7670dad1d2c677fb271ba9e395fef57'
+      FACTORY_ARTIFACT_ID: '13124415197'
+      FACTORY_SOURCE_SHA: 'dc2235a481b50ffe77a20c07bc7fdf46b023236e'
+      PRISM_EXPECTED_PCK_SHA: '92d4a653bc27dc1da358c0a03161f5f701d5f14f57f8fcb6353b43ea19fdebd9'
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +36,9 @@ jobs:
           import datetime,json,os
           from pathlib import Path
           m=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/metadata.json').read_text())
-          assert (m['id'],m['name'],m['size_in_bytes'])==(13118228531,'godot-3d-factory-export-evidence',30873154)
-          assert m['digest']=='sha256:8e7610217874136197f7cf9157bcc239444c1ae74097b51a3b461c3d0d0c6390'
-          assert m['workflow_run']['id']==41394020607 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert (m['id'],m['name'],m['size_in_bytes'])==(13124415197,'godot-3d-factory-export-evidence',37790061)
+          assert m['digest']=='sha256:892e46a796fbf6acd525de78af7c16d5ff75d09ef0ba13e6aaa3ac98c98ca5fd'
+          assert m['workflow_run']['id']==41407189827 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
           assert m['expired'] is False
           assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
           print('PASS: live metadata pinned; actual ZIP bytes checked next')
@@ -103,6 +103,7 @@ jobs:
           assert x['status']=='PCK_LOADED_SOFTWARE_RUNTIME_QA_PASS_NOT_HUMAN_GUI'
           assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==5
           assert x['physical_windows_gui']=='DEFERRED_LOCAL_GATE'
+          assert x['japanese_font_glyphs_available'] is True
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
       - name: Preserve runtime evidence, never label as Store screenshots

@@ -27,7 +27,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
             'pck_sha256': MEMBERS['candidate.pck'][1],
             'physical_windows_gui': 'DEFERRED_LOCAL_GATE',
             'sale_ready': False,
-            'japanese_font_glyphs_available': False,
+            'japanese_font_glyphs_available': True,
             'assertions': [
                 'first_30s_goal','tower_order_1_2_3','next_tower_hud',
                 'sentinel_telegraph_and_hit','time_and_warp_trap','pause',
@@ -65,6 +65,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
                 ('approved_package_version', '1.0.0.0'),
                 ('signed_product_msix', 'PASS'),
                 ('japanese_font_glyphs_available', 'PASS'),
+                ('japanese_font_glyphs_available', False),
             ):
                 with self.subTest(key=key), self.assertRaises(ArtifactRuntimeError):
                     finalize_runtime(self.preflight(), dict(self.runtime(), **{key:value}), Path(d))
@@ -77,7 +78,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
     def test_fixed_new_revision_not_old(self):
         self.assertEqual(REQUEST, '3d-prism-route-3d-' + SOURCE[:12])
         self.assertNotEqual(MEMBERS['candidate.pck'][1], '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03')
-        self.assertEqual(ZIP_SHA, '8e7610217874136197f7cf9157bcc239444c1ae74097b51a3b461c3d0d0c6390')
+        self.assertEqual(ZIP_SHA, '892e46a796fbf6acd525de78af7c16d5ff75d09ef0ba13e6aaa3ac98c98ca5fd')
 
 if __name__ == '__main__':
     unittest.main()
