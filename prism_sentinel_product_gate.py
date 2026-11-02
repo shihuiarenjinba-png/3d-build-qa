@@ -81,7 +81,10 @@ def inspect_product_evidence(audit, *, qa=None, identity=None, custody=None):
     # Cross-check the separate independently hashed Factory ZIP custody receipt.
     # The historical receipt is NOT the bytes, and cannot authenticate a live run.
     if custody is not None:
-        validate_receipt(custody)
+        try:
+            validate_receipt(custody)
+        except ValueError as exc:
+            raise ProductEvidenceError("independent custody receipt invalid: " + str(exc)) from exc
         c_artifact = custody["artifact"]
         c_members = custody["members"]
         c_old = custody["legacy_revision"]
