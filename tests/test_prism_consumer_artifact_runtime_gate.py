@@ -30,7 +30,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
             'japanese_font_glyphs_available': True,
             'board_colored_bounds': {'left':250,'right':750,'top':200,'bottom':600,'width':500,'height':400},
             'assertions': [
-                'first_30s_goal','tower_order_1_2_3','next_tower_hud',
+                'first_30s_goal','bilingual_start_guide','clock_frozen_until_start','tower_order_1_2_3','next_tower_hud',
                 'sentinel_telegraph_and_hit','time_and_warp_trap','pause',
                 'win','timeout','restart','english_japanese','board_visible_1024x768',
             ],
