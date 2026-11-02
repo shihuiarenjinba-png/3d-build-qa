@@ -1,0 +1,150 @@
+name: Prism PR22 exact PCK bilingual failure QA (software only)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  FACTORY_ARTIFACT_ID: '13180284133'
+  FACTORY_SOURCE_SHA: 'f4b458384243fdf379683ca793329614f61c9ead'
+  PRISM_EXPECTED_PCK_SHA: 'd1363805e4f899b0a895b6c4153f3fc902d548529c0cc47579b965666fcd98ec'
+  GH_TOKEN: @@{{ github.token }}
+jobs:
+  real-pr22-pck-ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: PR22 fail-closed negative fixtures
+        run: python -m unittest discover -s tests -p 'test_prism_pr22_failure_reason_gate.py' -v
+      - name: Verify live Factory PR22 Artifact metadata, exact HEAD and expiry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr22"
+          curl -fLsS --retry 3 --max-time 60 -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID" \
+            -o "$RUNNER_TEMP/pr22/metadata.json"
+          python - <<'PY'
+          import datetime, json, os
+          from pathlib import Path
+          m=json.loads((Path(os.environ['RUNNER_TEMP'])/'pr22/metadata.json').read_text())
+          assert m['id']==13180284133 and m['name']=='godot-3d-factory-export-evidence'
+          assert m['size_in_bytes']==37794728
+          assert m['digest']=='sha256:71ff9fca61ea310939f777a8c29cf93a57f25e19237ceb0fe1cacdbe3b977785'
+          assert m['workflow_run']['id']==41528683539
+          assert m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert m['expired'] is False
+          assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
+          print('PASS: PR22 exact HEAD and live Artifact metadata; checking bytes next')
+          PY
+      - name: Download new Factory ZIP and independently rehash EXE/PCK/manifest/CRC
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID/zip" \
+            -o "$RUNNER_TEMP/pr22/factory.zip"
+          python prism_pr22_failure_reason_gate.py \
+            --archive "$RUNNER_TEMP/pr22/factory.zip" \
+            --extract-to "$RUNNER_TEMP/pr22/payload" \
+            --out "$RUNNER_TEMP/pr22/byte-preflight.json"
+      - name: Install official Godot 4.3 and Mesa/Xvfb runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 \
+            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip \
+            -o "$RUNNER_TEMP/pr22/godot43.zip"
+          mkdir -p "$RUNNER_TEMP/pr22/godot"
+          unzip -q "$RUNNER_TEMP/pr22/godot43.zip" -d "$RUNNER_TEMP/pr22/godot"
+          chmod +x "$RUNNER_TEMP/pr22/godot/Godot_v4.3-stable_linux.x86_64"
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb
+          fi
+      - name: Execute actual PR22 compiled PCK and capture 8 bilingual frames
+        shell: bash
+        env:
+          PRISM_SCREENSHOT_DIR: @@{{ runner.temp }}/pr22/screenshots
+          PRISM_RUNTIME_RECEIPT: @@{{ runner.temp }}/pr22/godot-runtime.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$PRISM_SCREENSHOT_DIR"
+          LIBGL_ALWAYS_SOFTWARE=1 timeout 120s xvfb-run -a \
+            "$RUNNER_TEMP/pr22/godot/Godot_v4.3-stable_linux.x86_64" \
+            --path "$RUNNER_TEMP/pr22/payload" \
+            --main-pack "$RUNNER_TEMP/pr22/payload/candidate.pck" \
+            --rendering-method gl_compatibility --audio-driver Dummy \
+            --resolution 1024x768 \
+            --script "$GITHUB_WORKSPACE/tests/prism_pr22_failure_reason_runtime.gd" \
+            2>&1 | tee "$RUNNER_TEMP/pr22/godot-runtime.log"
+          grep -q 'PASS: PR22_REAL_EXPORTED_PCK_8_BILINGUAL_CAUSE_AND_RETRY_FRAMES_NOT_PHYSICAL' "$RUNNER_TEMP/pr22/godot-runtime.log"
+          if grep -Eq '(^|[[:space:]])(SCRIPT )?ERROR:' "$RUNNER_TEMP/pr22/godot-runtime.log"; then exit 1; fi
+      - name: Independently validate states, PNG CRC/size/SHA and exact PCK lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_pr22_failure_reason_gate.py \
+            --preflight "$RUNNER_TEMP/pr22/byte-preflight.json" \
+            --runtime "$RUNNER_TEMP/pr22/godot-runtime.json" \
+            --screenshots "$RUNNER_TEMP/pr22/screenshots" \
+            --out "$RUNNER_TEMP/pr22/independent-pr22-receipt.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['RUNNER_TEMP'])/'pr22/independent-pr22-receipt.json').read_text())
+          assert r['status']=='PR22_REAL_PCK_BILINGUAL_FAILURE_STATES_VERIFIED_NOT_PHYSICAL'
+          assert r['software_frame_sha256_count']==8
+          assert r['stale_trap_event_timeout_checked'] is True
+          assert r['physical_windows_gui']=='HOLD' and r['human_real_time_90s']=='HOLD'
+          assert r['sale_ready'] is False and r['store_submission_allowed'] is False
+          PY
+      - name: Preserve exact PR22 software-rendered evidence (never Store or human QA)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-pr22-real-pck-8-bilingual-failure-frames-not-physical
+          path: |
+            @@{{ runner.temp }}/pr22/metadata.json
+            @@{{ runner.temp }}/pr22/byte-preflight.json
+            @@{{ runner.temp }}/pr22/godot-runtime.json
+            @@{{ runner.temp }}/pr22/godot-runtime.log
+            @@{{ runner.temp }}/pr22/independent-pr22-receipt.json
+            @@{{ runner.temp }}/pr22/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 7
+  pr22-byte-contract-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Windows fail-closed negative fixture regression
+        run: python -m unittest discover -s tests -p 'test_prism_pr22_failure_reason_gate.py' -v
+      - name: Windows independently verify exact PR22 ZIP/EXE/PCK/manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dest = Join-Path $env:RUNNER_TEMP 'pr22-factory.zip'
+          curl.exe --fail --location --silent --show-error --retry 3 --max-time 180 `
+            -H "Authorization: Bearer $env:GH_TOKEN" `
+            -H 'Accept: application/vnd.github+json' `
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$env:FACTORY_ARTIFACT_ID/zip" `
+            -o $dest
+          if ($LASTEXITCODE -ne 0) { throw 'Factory Artifact download failed' }
+          python prism_pr22_failure_reason_gate.py --archive $dest `
+            --out (Join-Path $env:RUNNER_TEMP 'pr22-windows-byte-receipt.json')
+          if ($LASTEXITCODE -ne 0) { throw 'PR22 byte gate failed' }
