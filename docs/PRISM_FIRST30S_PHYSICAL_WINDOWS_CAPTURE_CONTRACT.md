@@ -2,11 +2,12 @@
 
 **Status: DEFERRED_LOCAL_GATE.** Cloud Godot screenshots are not physical Windows evidence. This contract applies **only** to the new first-30s consumer lineage; older Sentinel/consumer PCK and Identity return commit `11417b7...` cannot be relabelled.
 
-- Factory Draft PR #18 source: `3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d`
-- Request: `3d-prism-route-3d-3c5a1e683711`
-- Factory Artifact: `13130487252` / run `41422372852`
+- Factory Draft PR #19 source: `0878f48c79073596e30fed37a5703e0826389862`
+- Request: `3d-prism-route-3d-0878f48c7907`
+- Factory Artifact: `13142680551` / run `41444879105`
 - EXE SHA256: `66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13`
-- PCK SHA256: `7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060`
+- PCK SHA256: `4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc`
+- PR18 is stale for this contract: source `3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d`, Artifact `13130487252`, PCK SHA `7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060` must be rejected. The Windows EXE template SHA may remain identical between revisions; never use EXE equality alone as lineage proof.
 - Partner Center route: `MSIX_OR_PWA_GAME` / `MSIX or PWA game`. Identity CAS, approved Version and signed Store MSIX remain 36-owner HOLD.
 
 ## Procedure (physical Windows only)
@@ -30,11 +31,11 @@ The evaluator verifies exact source/request/Artifact/EXE/PCK values, hashes the 
 {
   "schema_version": 1,
   "capture_kind": "PHYSICAL_WINDOWS_OPERATOR_ATTESTATION",
-  "source_sha": "3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d",
-  "request_id": "3d-prism-route-3d-3c5a1e683711",
-  "factory_artifact_id": 13130487252,
+  "source_sha": "0878f48c79073596e30fed37a5703e0826389862",
+  "request_id": "3d-prism-route-3d-0878f48c7907",
+  "factory_artifact_id": 13142680551,
   "exe_sha256": "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13",
-  "pck_sha256": "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060",
+  "pck_sha256": "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc",
   "exe_path": "C:/qa/prism/candidate.exe",
   "pck_path": "C:/qa/prism/candidate.pck",
   "physical_device": true,
