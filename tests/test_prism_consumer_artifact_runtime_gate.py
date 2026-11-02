@@ -32,7 +32,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
             'assertions': [
                 'first_30s_goal','bilingual_start_guide','clock_frozen_until_start','tower_order_1_2_3','next_tower_hud',
                 'sentinel_telegraph_and_hit','time_and_warp_trap','pause',
-                'win','timeout','restart','english_japanese','board_visible_1024x768','hud_contrast_and_type',
+                'win','timeout','restart','english_japanese','board_visible_1024x768','hud_contrast_and_type', 'bilingual_hint_single_line_1024',
             ],
         }
 
