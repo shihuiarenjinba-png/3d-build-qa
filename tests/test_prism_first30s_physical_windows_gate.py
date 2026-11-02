@@ -104,9 +104,9 @@ class PhysicalGateTests(unittest.TestCase):
                 with self.assertRaises(PhysicalGateHold):
                     self.check(item)
 
-    def test_old_pr18_lineage_cannot_pass_as_new_pr20(self):
+    def test_old_pr18_lineage_cannot_pass_as_new_pr21(self):
         # EXE template may have the same SHA across revisions. The compiled
-        # PCK, source, request and Artifact must independently match PR20.
+        # PCK, source, request and Artifact must independently match PR21.
         stale = copy.deepcopy(self.capture)
         stale.update({
             "source_sha": "3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d",
@@ -124,13 +124,13 @@ class PhysicalGateTests(unittest.TestCase):
             with self.assertRaisesRegex(PhysicalGateHold, "exact pck_path"):
                 evaluate(copy.deepcopy(self.capture), self.root, windows_host=True)
 
-    def test_previous_pr19_source_and_pck_cannot_be_relabelled_pr20(self):
+    def test_previous_pr20_source_and_pck_cannot_be_relabelled_pr21(self):
         previous = copy.deepcopy(self.capture)
         previous.update({
-            "source_sha": "0878f48c79073596e30fed37a5703e0826389862",
-            "request_id": "3d-prism-route-3d-0878f48c7907",
-            "factory_artifact_id": 13142680551,
-            "pck_sha256": "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc",
+            "source_sha": "f015db1762fb63696bcca304028871235142bf3d",
+            "request_id": "3d-prism-route-3d-f015db1762fb",
+            "factory_artifact_id": 13149467845,
+            "pck_sha256": "10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9",
         })
         with self.assertRaisesRegex(PhysicalGateHold, "PROVENANCE_HOLD"):
             self.check(previous)
@@ -159,6 +159,12 @@ class PhysicalGateTests(unittest.TestCase):
         item = copy.deepcopy(self.capture)
         item["sessions"][0]["screenshots"]["retry"] = item["sessions"][0]["screenshots"]["guide"]
         with self.assertRaisesRegex(PhysicalGateHold, "duplicate frames"):
+            self.check(item)
+
+    def test_wrong_language_dpi_filename_rejected(self):
+        item = copy.deepcopy(self.capture)
+        item["sessions"][0]["screenshots"]["guide"] = "en-125-guide.png"
+        with self.assertRaisesRegex(PhysicalGateHold, "unsafe screenshot name"):
             self.check(item)
 
     def test_missing_file_and_fake_exe_digest_fail_closed(self):

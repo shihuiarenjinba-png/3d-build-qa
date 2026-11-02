@@ -14,11 +14,11 @@ import platform
 import struct
 import zlib
 
-SOURCE = "f015db1762fb63696bcca304028871235142bf3d"
-REQUEST = "3d-prism-route-3d-f015db1762fb"
-ARTIFACT_ID = 13149467845
+SOURCE = "066d9f51d58cfecb994665d5c31adb1156c38942"
+REQUEST = "3d-prism-route-3d-066d9f51d58c"
+ARTIFACT_ID = 13155398069
 EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
-PCK_SHA = "10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9"
+PCK_SHA = "a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9"
 SCREENSHOTS = ("guide", "active", "scan_warning", "trap", "outcome", "retry")
 OBSERVATIONS = (
     "goal_understood_in_30s", "tower_order_1_2_3_understood",
@@ -138,7 +138,8 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool) -> dict
         for state in SCREENSHOTS:
             name = screenshots[state]
             require(isinstance(name, str) and Path(name).name == name and
-                    name.endswith(".png") and name not in (".png", "..png"),
+                    name.endswith(".png") and name not in (".png", "..png") and
+                    name.startswith(f"{lang}-{dpi}-"),
                     "unsafe screenshot name")
             h = check_png(screenshot_dir / name)
             require(h not in hashes, "duplicate frames cannot prove distinct gameplay states")
@@ -160,12 +161,21 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool) -> dict
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--software-receipt", type=Path, required=True,
+                        help="PR21 QA11 seven-frame independent runtime receipt")
+    parser.add_argument("--software-screenshot-dir", type=Path, required=True,
+                        help="seven original software QA screenshots")
     parser.add_argument("--capture", type=Path, required=True)
     parser.add_argument("--screenshot-dir", type=Path, required=True)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     try:
-        capture = json.loads(args.capture.read_text(encoding="utf-8"))
+        from prism_pr21_software_baseline_gate import verify_software_baseline, unique_pairs
+        baseline = json.loads(args.software_receipt.read_text(encoding="utf-8"),
+                              object_pairs_hook=unique_pairs)
+        verify_software_baseline(baseline, args.software_screenshot_dir)
+        capture = json.loads(args.capture.read_text(encoding="utf-8"),
+                             object_pairs_hook=unique_pairs)
         result = evaluate(capture, args.screenshot_dir,
                           windows_host=platform.system() == "Windows")
         code = 0

@@ -25,6 +25,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_prism_consumer_artifact_runtime_gate.py' -v
       - name: Physical Windows check-only gate negative regression (never SALE_READY)
         run: python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v
+      - name: PR21 software baseline negative fixtures (old SHA, missing image, JA/EN mix)
+        run: python -m unittest discover -s tests -p 'test_prism_pr21_software_baseline_gate.py' -v
       - name: Verify live Factory artifact identity, source and expiry
         shell: bash
         run: |
@@ -114,6 +116,25 @@ jobs:
           assert 'bilingual_hint_single_line_1024' in x['godot_4_3_runtime_assertions']
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
+      - name: Bind all seven PR21 software frames and SHA to the exact QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_pr21_software_baseline_gate.py \
+            --receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
+            --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
+            --out "$RUNNER_TEMP/prism-real-pck/pr21-software-baseline.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pr21-software-baseline.json'
+          x = json.loads(p.read_text())
+          assert x['status'] == 'PR21_SOFTWARE_BASELINE_BYTES_VERIFIED_NOT_PHYSICAL'
+          assert x['software_screenshot_sha256_count'] == 7
+          assert x['physical_windows_gui'] == 'HOLD'
+          assert x['human_real_time_90s'] == 'HOLD'
+          assert x['sale_ready'] is False and x['store_submission_allowed'] is False
+          PY
       - name: Preserve runtime evidence, never label as Store screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -124,6 +145,7 @@ jobs:
             ${{ runner.temp }}/prism-real-pck/godot-runtime.json
             ${{ runner.temp }}/prism-real-pck/godot-runtime.log
             ${{ runner.temp }}/prism-real-pck/pck-runtime-independent-receipt.json
+            ${{ runner.temp }}/prism-real-pck/pr21-software-baseline.json
             ${{ runner.temp }}/prism-real-pck/screenshots/*.png
           if-no-files-found: warn
           retention-days: 7

@@ -2,14 +2,28 @@
 
 **Status: DEFERRED_LOCAL_GATE.** Cloud Godot screenshots are not physical Windows evidence. This contract applies **only** to the new first-30s consumer lineage; older Sentinel/consumer PCK and Identity return commit `11417b7...` cannot be relabelled.
 
-- Factory Draft PR #20 source: `f015db1762fb63696bcca304028871235142bf3d`
-- Request: `3d-prism-route-3d-f015db1762fb`
-- Factory Artifact: `13149467845` / run `41463172094`
+- Factory Draft PR #21 source: `066d9f51d58cfecb994665d5c31adb1156c38942`
+- Request: `3d-prism-route-3d-066d9f51d58c`
+- Factory Artifact: `13155398069` / run `41472458097`
 - EXE SHA256: `66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13`
-- PCK SHA256: `10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9`
-- PR19 is also historical for this new HUD revision: source `0878f48c79073596e30fed37a5703e0826389862`, Artifact `13142680551`, PCK SHA `4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc` must be rejected. The new PR20 source/request/PCK are a separate lineage.
+- PCK SHA256: `a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9`
+- PR20 is historical: source `f015db1762fb63696bcca304028871235142bf3d`, Artifact `13149467845`, PCK SHA `10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9` cannot authenticate PR21.
+- PR19 is also historical for this new HUD revision: source `0878f48c79073596e30fed37a5703e0826389862`, Artifact `13142680551`, PCK SHA `4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc` must be rejected. The new PR21 source/request/PCK are a separate lineage.
 - PR18 is stale for this contract: source `3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d`, Artifact `13130487252`, PCK SHA `7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060` must be rejected. The Windows EXE template SHA may remain identical between revisions; never use EXE equality alone as lineage proof.
 - Partner Center route: `MSIX_OR_PWA_GAME` / `MSIX or PWA game`. Identity CAS, approved Version and signed Store MSIX remain 36-owner HOLD.
+
+## PR21 software baseline required before physical capture
+
+- Independent QA Draft PR #11: [real Godot PCK run 41472861586](https://github.com/shihuiarenjinba-png/3d-build-qa/actions/runs/41472861586), Artifact `13156640316`.
+- Factory ZIP SHA256: `1a19000c225b5165a1280ec36b4dcf5eaec4287e39d50f86512b8e9f5ad4dd44`; export manifest SHA256: `03c04fc0958383ffcffa6e0bed35706b813f517526c793278e662ac2413f8ed9`.
+- Extract the QA11 ZIP. Keep `pck-runtime-independent-receipt.json` and original `screenshots/guide_en.png`, `guide_ja.png`, `initial.png`, `scan.png`, `trap.png`, `win.png`, `ja.png`. Do not substitute old PR20 images or physical screenshots.
+- Check all seven software frames against the exact PR21 source/request/EXE/PCK/manifest/ZIP hashes and runtime receipt:
+
+```powershell
+py -3 prism_pr21_software_baseline_gate.py --receipt .\qa11\pck-runtime-independent-receipt.json --screenshot-dir .\qa11\screenshots --out pr21-software-baseline.json
+```
+
+Missing or swapped JA/EN files, mismatched hashes, absent Japanese glyph assertions, and cloud evidence falsely claiming physical Windows must fail. A successful baseline is **software evidence only**. The physical gate independently requires the same baseline plus actual EXE/PCK and 24 physical screenshots. Seven software frames cannot substitute for 24 physical frames.
 
 ## Procedure (physical Windows only)
 
@@ -21,10 +35,10 @@
 6. Run the check-only command on that **same physical Windows machine**:
 
 ```powershell
-py -3 prism_first30s_physical_windows_gate.py --capture physical-capture.json --screenshot-dir .\physical-frames --out physical-review-receipt.json
+py -3 prism_first30s_physical_windows_gate.py --software-receipt .\qa11\pck-runtime-independent-receipt.json --software-screenshot-dir .\qa11\screenshots --capture physical-capture.json --screenshot-dir .\physical-frames --out physical-review-receipt.json
 ```
 
-The evaluator verifies exact source/request/Artifact/EXE/PCK values, hashes the two files from disk, checks all four language/DPI sessions, timestamps, comprehension/90s/retry flags and screenshot PNG CRC/dimensions/uniqueness. Missing or contradictory evidence yields nonzero exit code and `DEFERRED_LOCAL_GATE`.
+The evaluator checks the PR21 software baseline, then verifies exact source/request/Artifact/EXE/PCK values, hashes the two files from disk, checks all four language/DPI sessions, timestamps, comprehension/90s/retry flags and screenshot PNG CRC/dimensions/uniqueness. Missing or contradictory evidence yields nonzero exit code and `DEFERRED_LOCAL_GATE`.
 
 ## Capture JSON shape (values shown are placeholders, not evidence)
 
@@ -32,11 +46,11 @@ The evaluator verifies exact source/request/Artifact/EXE/PCK values, hashes the 
 {
   "schema_version": 1,
   "capture_kind": "PHYSICAL_WINDOWS_OPERATOR_ATTESTATION",
-  "source_sha": "f015db1762fb63696bcca304028871235142bf3d",
-  "request_id": "3d-prism-route-3d-f015db1762fb",
-  "factory_artifact_id": 13149467845,
+  "source_sha": "066d9f51d58cfecb994665d5c31adb1156c38942",
+  "request_id": "3d-prism-route-3d-066d9f51d58c",
+  "factory_artifact_id": 13155398069,
   "exe_sha256": "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13",
-  "pck_sha256": "10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9",
+  "pck_sha256": "a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9",
   "exe_path": "C:/qa/prism/candidate.exe",
   "pck_path": "C:/qa/prism/candidate.pck",
   "physical_device": true,
