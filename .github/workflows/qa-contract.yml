@@ -46,3 +46,82 @@ jobs:
             ${{ runner.temp }}/3d-makeappx-fixture/offline-3d-fixture.msix
             ${{ runner.temp }}/3d-makeappx-fixture/fixture-evidence.json
           retention-days: 3
+
+  sentinel-source-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout 3D QA tests
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout immutable real Sentinel Factory source
+        uses: actions/checkout@v4
+        with:
+          repository: shihuiarenjinba-png/3d-game-factory
+          ref: e432d94ed0db22878f61f1a8af140d7d7de2288f
+          path: factory-source
+          persist-credentials: false
+      - name: Install official Godot 4.3 Linux runtime (no Windows GUI claim)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 3 --max-time 180 \
+            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip \
+            -o "${RUNNER_TEMP}/godot43.zip"
+          mkdir -p "${RUNNER_TEMP}/godot43"
+          unzip -q "${RUNNER_TEMP}/godot43.zip" -d "${RUNNER_TEMP}/godot43"
+          chmod +x "${RUNNER_TEMP}/godot43/Godot_v4.3-stable_linux.x86_64"
+          "${RUNNER_TEMP}/godot43/Godot_v4.3-stable_linux.x86_64" --version
+      - name: Real pinned-source 90-second Godot headless gameplay and consumer-state smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C factory-source rev-parse HEAD)" = e432d94ed0db22878f61f1a8af140d7d7de2288f
+          project="$GITHUB_WORKSPACE/factory-source/products/prism-route-3d"
+          cp tests/prism_sentinel_90s_source_runtime.gd "$project/tests/qa_90s_runtime.gd"
+          godot="${RUNNER_TEMP}/godot43/Godot_v4.3-stable_linux.x86_64"
+          "$godot" --headless --editor --path "$project" --import
+          "$godot" --headless --path "$project" --script res://tests/test_smoke.gd | tee "${RUNNER_TEMP}/factory-source-smoke.log"
+          grep -q 'PASS: Prism Route 3D gameplay' "${RUNNER_TEMP}/factory-source-smoke.log"
+          "$godot" --headless --path "$project" --script res://tests/qa_90s_runtime.gd | tee "${RUNNER_TEMP}/qa-90s-source-runtime.log"
+          grep -q 'PASS: QA_90S_SENTINEL_SOURCE_RUNTIME_EN_JA_GOAL_TELEGRAPH_TRAPS_PAUSE_WIN_FAIL_RETRY' "${RUNNER_TEMP}/qa-90s-source-runtime.log"
+      - name: Preserve explicit source/PCK/physical-Windows evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path("factory-source/products/prism-route-3d")
+          source="e432d94ed0db22878f61f1a8af140d7d7de2288f"
+          result={
+            "schema_version":1,
+            "product":"Prism Route 3D Sentinel",
+            "source_sha":source,
+            "request_id":"3d-prism-route-3d-e432d94ed0db",
+            "factory_artifact_id":12909162367,
+            "source_runtime_godot_version":"4.3.stable",
+            "source_headless_runtime":"PASS",
+            "source_smoke_script_sha256":hashlib.sha256(Path("tests/prism_sentinel_90s_source_runtime.gd").read_bytes()).hexdigest(),
+            "game_logic_source_sha256":hashlib.sha256((root/"scripts/game_logic.gd").read_bytes()).hexdigest(),
+            "pinned_pck_sha256_reference_only":"3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03",
+            "factory_pck_bytes_revalidated_in_this_job":False,
+            "factory_pck_executed_in_this_job":False,
+            "windows_exe_executed_in_this_job":False,
+            "physical_windows_gui_1024x768_dpi125_150":"DEFERRED_LOCAL_GATE",
+            "tower_order_visual_readability":"HOLD_UNVERIFIED",
+            "store_identity_rebind":"HOLD",
+            "signed_product_msix":"HOLD",
+            "sale_ready":False
+          }
+          Path("sentinel-source-runtime-receipt.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
+          print("PASS: pinned source runtime evidence; exported PCK and Windows GUI remain separate HOLD gates")
+          PY
+      - name: Upload source-only headless receipt (not product approval)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-sentinel-source-headless-not-pck-not-gui
+          path: sentinel-source-runtime-receipt.json
+          retention-days: 7
+          if-no-files-found: error
