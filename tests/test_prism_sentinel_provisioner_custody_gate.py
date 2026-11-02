@@ -4,6 +4,15 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import hashlib
+import json
+import os
+import stat
+import warnings
+import zipfile
+from unittest import mock
+import prism_sentinel_provisioner_custody_gate as gate
+
 from prism_sentinel_provisioner_custody_gate import (
     CustodyError, validate_receipt, verify_archive, load_json,
     EXE, PCK, OLD_PCK, ARCHIVE
@@ -89,6 +98,100 @@ class ProvisionerCustodyContract(unittest.TestCase):
             p.write_bytes(b"not a Factory ZIP")
             with self.assertRaises(CustodyError):
                 verify_archive(p, self.r)
+
+
+    def test_historical_receipt_metadata_is_pinned_not_live_status(self):
+        self.reject("artifact", "github_expired", True)
+        self.reject("artifact", "expires_at", "2026-11-06T15:24:12Z")
+        for key, value in (("verified_at_utc", "2099-01-01T00:00:00Z"),
+                           ("verification_method", "GitHub metadata only")):
+            altered = copy.deepcopy(self.r)
+            altered[key] = value
+            with self.subTest(key=key), self.assertRaises(CustodyError):
+                validate_receipt(altered)
+        altered = copy.deepcopy(self.r)
+        altered["downstream"]["store_ready"] = True
+        with self.assertRaises(CustodyError):
+            validate_receipt(altered)
+        out = validate_receipt(self.r)
+        self.assertFalse(out["github_artifact_live_availability_checked_this_run"])
+        self.assertFalse(out["real_archive_bytes_verified_this_run"])
+
+    def _synthetic_zip_reader_case(self, mutation=None, error=None):
+        """Exercise ZIP reader with tiny bytes, never substitute for real Factory bytes."""
+        manifest = {"test_fixture": "synthetic_only"}
+        baseline = [
+            ("candidate.exe", b"synthetic-windows-exe"),
+            ("candidate.pck", b"synthetic-sentinel-pck"),
+            ("export-evidence.json", json.dumps(manifest).encode("utf-8")),
+        ]
+        expected = {name: (len(data), hashlib.sha256(data).hexdigest())
+                    for name, data in baseline}
+        entries = list(baseline)
+        if mutation == "old_pck":
+            entries[1] = ("candidate.pck", b"synthetic-legacy-pck!")
+        elif mutation == "manifest":
+            entries[2] = ("export-evidence.json", b'{"test_fixture":"forged"}')
+        elif mutation == "extra":
+            entries.append(("unsigned-qa-fixture.msix", b"not a product"))
+        elif mutation == "duplicate":
+            entries.append(entries[1])
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "synthetic-not-factory.zip"
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                with zipfile.ZipFile(p, "w", compression=zipfile.ZIP_STORED) as z:
+                    for name, data in entries:
+                        if mutation == "symlink" and name == "candidate.pck":
+                            info = zipfile.ZipInfo(name)
+                            info.create_system = 3
+                            info.external_attr = (stat.S_IFLNK | 0o777) << 16
+                            z.writestr(info, data)
+                        else:
+                            z.writestr(name, data)
+            r = {"artifact": {"archive_bytes": p.stat().st_size},
+                 "manifest": manifest}
+            archive_hash = hashlib.sha256(p.read_bytes()).hexdigest()
+            hold = {"product_e2e": "HOLD", "store_submission_allowed": False}
+            with mock.patch.object(gate, "MEMBERS", expected), \\
+                 mock.patch.object(gate, "ARCHIVE", archive_hash), \\
+                 mock.patch.object(gate, "validate_receipt", return_value=hold.copy()):
+                if error:
+                    with self.assertRaisesRegex(CustodyError, error):
+                        gate.verify_archive(p, r)
+                else:
+                    result = gate.verify_archive(p, r)
+                    self.assertTrue(result["real_archive_bytes_verified_this_run"])
+                    self.assertEqual(result["product_e2e"], "HOLD")
+                    self.assertFalse(result["store_submission_allowed"])
+
+    def test_synthetic_zip_reader_positive_is_still_hold(self):
+        self._synthetic_zip_reader_case()
+
+    def test_synthetic_zip_reader_rejects_rehashed_old_pck(self):
+        # Rehashing the outer archive must not hide wrong inner PCK bytes.
+        self._synthetic_zip_reader_case("old_pck", "member SHA mismatch")
+
+    def test_synthetic_zip_reader_rejects_forged_manifest(self):
+        self._synthetic_zip_reader_case("manifest", "member SHA mismatch")
+
+    def test_synthetic_zip_reader_rejects_unsigned_fixture_extra_member(self):
+        self._synthetic_zip_reader_case("extra", "archive member set")
+
+    def test_synthetic_zip_reader_rejects_duplicate_member(self):
+        self._synthetic_zip_reader_case("duplicate", "archive member set")
+
+    def test_synthetic_zip_reader_rejects_symlink(self):
+        self._synthetic_zip_reader_case("symlink", "unsafe ZIP entry")
+
+    @unittest.skipUnless(os.environ.get("PRISM_SENTINEL_REAL_ZIP"),
+                         "real Factory ZIP not supplied; CI checks pinned receipt only")
+    def test_actual_factory_zip_if_supplied(self):
+        out = verify_archive(Path(os.environ["PRISM_SENTINEL_REAL_ZIP"]), self.r)
+        self.assertTrue(out["real_archive_bytes_verified_this_run"])
+        self.assertEqual(out["product_e2e"], "HOLD")
+        self.assertFalse(out["store_submission_allowed"])
+
 
 
 if __name__ == "__main__":
