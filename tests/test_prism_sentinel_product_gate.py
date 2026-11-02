@@ -1,5 +1,7 @@
 """Fail-closed Prism Sentinel historical source/fixture regression."""
 import copy
+import json
+from pathlib import Path
 import unittest
 
 from prism_sentinel_product_gate import (
@@ -46,6 +48,11 @@ def audit():
     }
 
 
+def custody():
+    path = Path(__file__).resolve().parents[1] / "evidence" / "prism-sentinel-provisioner-byte-custody-snapshot.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 FIXTURE_QA = {
     "status": "BLOCKED",
     "errors": ["ValueError: fixture-only MSIX identity is not a product package"],
@@ -64,6 +71,68 @@ class TestPrismSentinelProductGate(unittest.TestCase):
         self.assertFalse(result["real_product_msix_verified"])
         self.assertFalse(result["store_submission_allowed"])
         self.assertEqual(result["identity_state"], "HOLD_OFFICIAL_IDENTITY_MISSING")
+
+    def test_independent_custody_receipt_correlated_but_not_live_bytes(self):
+        result = inspect_product_evidence(audit(), qa=FIXTURE_QA, custody=custody())
+        self.assertTrue(result["independent_custody_receipt_correlated"])
+        self.assertFalse(result["real_archive_bytes_verified_this_run"])
+        self.assertEqual(result["product_e2e"], "HOLD")
+
+    def test_independent_custody_mutations_rejected(self):
+        mutations = [
+            ("members", "candidate.pck", "sha256", LEGACY_PCK),
+            ("members", "candidate.exe", "sha256", "0" * 64),
+            ("members", "export-evidence.json", "sha256", "0" * 64),
+            ("manifest", "request_id", None, LEGACY_REQUEST),
+            ("legacy_revision", "pck_sha256", None, PCK),
+        ]
+        for section, key, field, value in mutations:
+            with self.subTest(section=section, key=key, field=field):
+                changed = custody()
+                if field is None:
+                    changed[section][key] = value
+                else:
+                    changed[section][key][field] = value
+                with self.assertRaises(ProductEvidenceError):
+                    inspect_product_evidence(audit(), custody=changed)
+
+    def test_legacy_same_exe_different_pck_stays_hold(self):
+        receipt = custody()
+        self.assertEqual(receipt["members"]["candidate.exe"]["sha256"], EXE)
+        self.assertEqual(audit()["artifact_checks"]["new_legacy_unsigned_qa"]["exe_sha256"], EXE)
+        self.assertNotEqual(receipt["members"]["candidate.pck"]["sha256"], LEGACY_PCK)
+        self.assertEqual(inspect_product_evidence(audit(), custody=receipt)["product_e2e"], "HOLD")
+
+    def test_version_signature_cas_claims_rejected(self):
+        for key, value in (("package_version", "1.0.0.0"),
+                           ("approved_package_version", "1.0.0.0"),
+                           ("signed_product_msix_sha256", "0" * 64),
+                           ("identity_cas_commit", "11417b7")):
+            with self.subTest(key=key):
+                changed = audit()
+                changed["decision"][key] = value
+                with self.assertRaisesRegex(ProductEvidenceError, "unapproved version"):
+                    inspect_product_evidence(changed, custody=custody())
+
+    def test_identity_wrong_store_or_guessed_version_rejected(self):
+        base = {"source": "partner_center", "reviewed": True,
+                "source_sha": SENTINEL, "request_id": REQUEST,
+                "store_id": "9N95J2T57B41"}
+        for key, value in (("store_id", "9INVALID"),
+                           ("registration_type", "GDK_GAME"),
+                           ("package_version", "1.0.0.0"),
+                           ("cas_applied", True)):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ProductEvidenceError, "unverified Store ID"):
+                    inspect_product_evidence(audit(), identity=dict(base, **{key: value}), custody=custody())
+
+    def test_unsigned_fixture_product_claim_rejected(self):
+        for key, value in (("package_version", "1.0.0.0"),
+                           ("package_kind", "signed_product"),
+                           ("cas_applied", True)):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ProductEvidenceError, "fixture falsely promoted"):
+                    inspect_product_evidence(audit(), qa=dict(FIXTURE_QA, **{key: value}), custody=custody())
 
     def test_legacy_identity_rejected(self):
         identity = {"source": "partner_center", "reviewed": True,
