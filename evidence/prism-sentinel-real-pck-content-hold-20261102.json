@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "receipt_type": "PRISM_SENTINEL_REAL_FACTORY_PCK_CONTENT_AUDIT",
+  "product": "Prism Route 3D Sentinel",
+  "source_sha": "e432d94ed0db22878f61f1a8af140d7d7de2288f",
+  "request_id": "3d-prism-route-3d-e432d94ed0db",
+  "factory_artifact_id": 12909162367,
+  "factory_zip_sha256": "dc60f397e002bddf63a8f64ec263dd241a3eb8c4f7fd6e6595d115a9f273ae9c",
+  "pck_sha256": "3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03",
+  "pck_size_bytes": 71568,
+  "pck_resource_count": 14,
+  "all_resource_md5_match": true,
+  "real_factory_pck_bytes_checked_in_local_container": true,
+  "ci_downloads_real_factory_pck": false,
+  "findings": [
+    {"path": "res://product-manifest.json", "reason": "FACTORY_INTERNAL_MANIFEST_BUNDLED"},
+    {"path": "res://store/approved-identity.json", "reason": "OLD_IDENTITY_BUNDLED"},
+    {"path": "res://tests/test_smoke.gd.remap", "reason": "DEVELOPMENT_TEST_SCRIPT_BUNDLED"},
+    {"path": "res://tests/test_smoke.gdc", "reason": "DEVELOPMENT_TEST_SCRIPT_BUNDLED"}
+  ],
+  "status": "RELEASE_PCK_CONTENT_HOLD",
+  "product_e2e": "HOLD",
+  "physical_windows_gui": "DEFERRED_LOCAL_GATE",
+  "new_sentinel_identity_cas": "HOLD",
+  "approved_package_version": "HOLD",
+  "store_submission_allowed": false,
+  "sale_ready": false,
+  "required_reexport_exclusions": ["store/approved-identity.json", "product-manifest.json", "tests/**"],
+  "source_revision_immutable": true,
+  "next_export_requires_new_source_sha_and_request_id": true
+}

@@ -1,0 +1,120 @@
+name: Prism consumer real exported-PCK runtime (QA only)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exported-pck-software-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FACTORY_ARTIFACT_ID: '13118228531'
+      FACTORY_SOURCE_SHA: 'da6f7c129687922c58c43496da4667ecef903e17'
+      PRISM_EXPECTED_PCK_SHA: '6e04300b176f923c9dda5777c5115af4e7670dad1d2c677fb271ba9e395fef57'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Negative boundary regression
+        run: python -m unittest discover -s tests -p 'test_prism_consumer_artifact_runtime_gate.py' -v
+      - name: Verify live Factory artifact identity, source and expiry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/prism-real-pck"
+          curl -fLsS --retry 3 --max-time 45 -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID" \
+            -o "$RUNNER_TEMP/prism-real-pck/metadata.json"
+          python - <<'PY'
+          import datetime,json,os
+          from pathlib import Path
+          m=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/metadata.json').read_text())
+          assert (m['id'],m['name'],m['size_in_bytes'])==(13118228531,'godot-3d-factory-export-evidence',30873154)
+          assert m['digest']=='sha256:8e7610217874136197f7cf9157bcc239444c1ae74097b51a3b461c3d0d0c6390'
+          assert m['workflow_run']['id']==41394020607 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert m['expired'] is False
+          assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
+          print('PASS: live metadata pinned; actual ZIP bytes checked next')
+          PY
+      - name: Download and independently verify exact EXE/PCK/manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID/zip" \
+            -o "$RUNNER_TEMP/prism-real-pck/factory.zip"
+          python prism_consumer_artifact_runtime_gate.py \
+            --archive "$RUNNER_TEMP/prism-real-pck/factory.zip" \
+            --extract-to "$RUNNER_TEMP/prism-real-pck/payload" \
+            --out "$RUNNER_TEMP/prism-real-pck/byte-preflight.json"
+      - name: Install official Godot 4.3 Linux runtime and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --max-time 180 \
+            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip \
+            -o "$RUNNER_TEMP/prism-real-pck/godot43.zip"
+          mkdir -p "$RUNNER_TEMP/prism-real-pck/godot"
+          unzip -q "$RUNNER_TEMP/prism-real-pck/godot43.zip" -d "$RUNNER_TEMP/prism-real-pck/godot"
+          chmod +x "$RUNNER_TEMP/prism-real-pck/godot/Godot_v4.3-stable_linux.x86_64"
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb
+          fi
+      - name: Execute compiled PCK in Godot Mesa/Xvfb and capture four actual frames
+        shell: bash
+        env:
+          PRISM_SCREENSHOT_DIR: ${{ runner.temp }}/prism-real-pck/screenshots
+          PRISM_RUNTIME_RECEIPT: ${{ runner.temp }}/prism-real-pck/godot-runtime.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$PRISM_SCREENSHOT_DIR"
+          GODOT="$RUNNER_TEMP/prism-real-pck/godot/Godot_v4.3-stable_linux.x86_64"
+          PCK="$RUNNER_TEMP/prism-real-pck/payload/candidate.pck"
+          LIBGL_ALWAYS_SOFTWARE=1 timeout 120s xvfb-run -a "$GODOT" \
+            --path "$RUNNER_TEMP/prism-real-pck/payload" --main-pack "$PCK" \
+            --rendering-method gl_compatibility --audio-driver Dummy \
+            --resolution 1024x768 \
+            --script "$GITHUB_WORKSPACE/tests/prism_consumer_pck_runtime.gd" \
+            2>&1 | tee "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
+          grep -q 'PASS: PRISM_CONSUMER_REAL_PCK_SOFTWARE_RUNTIME_90S_STATES_AND_4_SCREENSHOTS_NOT_HUMAN_GUI' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
+          if grep -Eq '(^|[[:space:]])(SCRIPT )?ERROR:' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"; then exit 1; fi
+      - name: Bind real PCK execution and screenshot hashes to exact Factory bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_consumer_artifact_runtime_gate.py --finalize \
+            --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
+            --runtime-json "$RUNNER_TEMP/prism-real-pck/godot-runtime.json" \
+            --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
+            --out "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          x=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pck-runtime-independent-receipt.json').read_text())
+          assert x['status']=='PCK_LOADED_SOFTWARE_RUNTIME_QA_PASS_NOT_HUMAN_GUI'
+          assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==5
+          assert x['physical_windows_gui']=='DEFERRED_LOCAL_GATE'
+          assert x['sale_ready'] is False and x['store_submission_allowed'] is False
+          PY
+      - name: Preserve runtime evidence, never label as Store screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-consumer-real-pck-software-qa-not-store
+          path: |
+            ${{ runner.temp }}/prism-real-pck/byte-preflight.json
+            ${{ runner.temp }}/prism-real-pck/godot-runtime.json
+            ${{ runner.temp }}/prism-real-pck/godot-runtime.log
+            ${{ runner.temp }}/prism-real-pck/pck-runtime-independent-receipt.json
+            ${{ runner.temp }}/prism-real-pck/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 7

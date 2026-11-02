@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "receipt_type": "SENTINEL_PRESERVED_FACTORY_ZIP_INDEPENDENT_RECHECK",
+  "verified_at_utc": "2026-11-02T01:36:43Z",
+  "verification_scope": "Preserved 30.9 MB real Factory ZIP mounted from a prior successful download; independent local bytes rehashed in this run; NOT a fresh GitHub download or CI binary verification.",
+  "product": "Prism Route 3D",
+  "slug": "prism-route-3d",
+  "source_sha": "e432d94ed0db22878f61f1a8af140d7d7de2288f",
+  "request_id": "3d-prism-route-3d-e432d94ed0db",
+  "factory_build_head": "e432d94ed0db22878f61f1a8af140d7d7de2288f",
+  "factory_artifact": {
+    "run_id": 40901053437,
+    "artifact_id": 12909162367,
+    "expires_at_utc": "2026-11-05T15:24:12Z",
+    "live_availability_checked_this_run": false,
+    "archive_bytes": 30880705,
+    "archive_sha256": "dc60f397e002bddf63a8f64ec263dd241a3eb8c4f7fd6e6595d115a9f273ae9c"
+  },
+  "members": {
+    "candidate.exe": {
+      "bytes": 84214784,
+      "sha256": "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
+    },
+    "candidate.pck": {
+      "bytes": 71568,
+      "sha256": "3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03"
+    },
+    "export-evidence.json": {
+      "bytes": 672,
+      "sha256": "c55db8c276919cc9792c02f2423ecc6e7b249ad83772e9e256de1fd412208103"
+    }
+  },
+  "checks": {
+    "full_zip_sha_and_size": true,
+    "exact_three_members": true,
+    "zip_crc": true,
+    "member_sha_and_size": true,
+    "embedded_manifest_source_request_build_head": true,
+    "embedded_manifest_exe_pck": true,
+    "legacy_pck_sha_mismatch": true
+  },
+  "legacy_pck_sha256": "2cd8af6496cf288bc3e6aef317e472b480f21d2052cbd4ae0cd171e6285ab1ef",
+  "historical_identity_return_commit": "11417b75636ee18816028ffd5221884c4c9a9836",
+  "historical_identity_is_sentinel_cas": false,
+  "route": {
+    "registration_type": "MSIX_OR_PWA_GAME",
+    "partner_center_selection": "MSIX or PWA game"
+  },
+  "qa": {
+    "ci_commit": "653e652694b861f093fce73c5a3bf6115d3eb673",
+    "ci_run_id": 41373021468,
+    "ubuntu_tests": "SUCCESS",
+    "windows_fixture_tests": "SUCCESS",
+    "ci_downloaded_real_zip": false,
+    "synthetic_zip_tests_are_real_product_e2e": false
+  },
+  "downstream": {
+    "official_identity_cas": "HOLD",
+    "package_version": "HOLD",
+    "signed_product_msix": "HOLD",
+    "windows_all_auto_intake": "HOLD",
+    "local_gui_gpu": "DEFERRED_LOCAL_GATE",
+    "product_e2e": "HOLD",
+    "store_submission_allowed": false
+  },
+  "limitations": "Receipt is a recorded byte observation, not a cryptographically signed attestation. ZIP bytes are not committed to Git. No live Partner Center check, Windows GUI/GPU screenshot, approved version, signed MSIX, or Store submission."
+}
