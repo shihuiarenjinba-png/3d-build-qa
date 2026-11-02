@@ -153,9 +153,9 @@ class ProvisionerCustodyContract(unittest.TestCase):
                  "manifest": manifest}
             archive_hash = hashlib.sha256(p.read_bytes()).hexdigest()
             hold = {"product_e2e": "HOLD", "store_submission_allowed": False}
-            with mock.patch.object(gate, "MEMBERS", expected), \\
-                 mock.patch.object(gate, "ARCHIVE", archive_hash), \\
-                 mock.patch.object(gate, "validate_receipt", return_value=hold.copy()):
+            with (mock.patch.object(gate, "MEMBERS", expected),
+                  mock.patch.object(gate, "ARCHIVE", archive_hash),
+                  mock.patch.object(gate, "validate_receipt", return_value=hold.copy())):
                 if error:
                     with self.assertRaisesRegex(CustodyError, error):
                         gate.verify_archive(p, r)
