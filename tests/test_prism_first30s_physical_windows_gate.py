@@ -9,7 +9,7 @@ from unittest.mock import patch
 import zlib
 
 from prism_first30s_physical_windows_gate import (
-    ARTIFACT_ID, EXE_SHA, PCK_SHA, REQUEST, SOURCE,
+    FACTORY_ARTIFACT_EXPIRES_AT, ARTIFACT_ID, EXE_SHA, PCK_SHA, REQUEST, SOURCE,
     PhysicalGateHold, evaluate, SCREENSHOTS, OBSERVATIONS,
 )
 
@@ -61,6 +61,8 @@ class PhysicalGateTests(unittest.TestCase):
             "capture_kind": "PHYSICAL_WINDOWS_OPERATOR_ATTESTATION",
             "source_sha": SOURCE, "request_id": REQUEST,
             "factory_artifact_id": ARTIFACT_ID,
+            "factory_artifact_expires_at": FACTORY_ARTIFACT_EXPIRES_AT,
+            "code_integrity_status": "ALLOWED_BY_EXISTING_POLICY",
             "exe_sha256": EXE_SHA, "pck_sha256": PCK_SHA,
             "exe_path": str(cls.root / "candidate.exe"),
             "pck_path": str(cls.root / "candidate.pck"),
@@ -76,7 +78,8 @@ class PhysicalGateTests(unittest.TestCase):
     def check(self, data, host=True):
         with patch("prism_first30s_physical_windows_gate.digest",
                    side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else PCK_SHA):
-            return evaluate(data, self.root, windows_host=host)
+            return evaluate(data, self.root, windows_host=host,
+                            now=datetime(2026, 11, 3, tzinfo=timezone.utc))
 
     def test_fixture_only_can_reach_review_not_sale(self):
         result = self.check(copy.deepcopy(self.capture))
@@ -85,6 +88,20 @@ class PhysicalGateTests(unittest.TestCase):
         self.assertFalse(result["sale_ready"])
         self.assertFalse(result["store_submission_allowed"])
         self.assertEqual(result["physical_screenshot_sha256_count"], 24)
+
+    def test_expired_artifact_or_code_integrity_block_always_hold(self):
+        for status in ("NOT_CHECKED", "BLOCKED_BY_CODE_INTEGRITY", "BYPASSED"):
+            item = copy.deepcopy(self.capture)
+            item["code_integrity_status"] = status
+            with self.subTest(status=status), self.assertRaisesRegex(PhysicalGateHold, "CODE_INTEGRITY_HOLD"):
+                self.check(item)
+        item = copy.deepcopy(self.capture)
+        item["factory_artifact_expires_at"] = "2026-11-10T15:32:35Z"
+        with self.assertRaisesRegex(PhysicalGateHold, "expiry metadata mismatch"):
+            self.check(item)
+        with self.assertRaisesRegex(PhysicalGateHold, "EXPIRED_FACTORY_ARTIFACT_HOLD"):
+            evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
+                     now=datetime(2026, 11, 10, tzinfo=timezone.utc))
 
     def test_non_windows_always_hold(self):
         with self.assertRaisesRegex(PhysicalGateHold, "DEFERRED_LOCAL_GATE"):
@@ -122,7 +139,8 @@ class PhysicalGateTests(unittest.TestCase):
                    side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else
                    "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060"):
             with self.assertRaisesRegex(PhysicalGateHold, "exact pck_path"):
-                evaluate(copy.deepcopy(self.capture), self.root, windows_host=True)
+                evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
+                         now=datetime(2026, 11, 3, tzinfo=timezone.utc))
 
     def test_previous_pr20_source_and_pck_cannot_be_relabelled_pr21(self):
         previous = copy.deepcopy(self.capture)
@@ -173,7 +191,8 @@ class PhysicalGateTests(unittest.TestCase):
         with self.assertRaises(PhysicalGateHold):
             self.check(item)
         with self.assertRaisesRegex(PhysicalGateHold, "exact exe_path"):
-            evaluate(copy.deepcopy(self.capture), self.root, windows_host=True)
+            evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
+                     now=datetime(2026, 11, 3, tzinfo=timezone.utc))
 
 
 if __name__ == "__main__":
