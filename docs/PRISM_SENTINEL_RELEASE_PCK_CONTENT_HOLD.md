@@ -19,6 +19,10 @@ The **existing pinned PCK must stay HOLD**. No amount of fixture PASS or source 
 - CI Ubuntu consumes `evidence/prism-sentinel-pck-resource-inventory-20261102.json` as **historical inventory only**, expecting HOLD and exit code 2. CI Windows runs the negative fixture tests. Neither job downloads the actual Factory ZIP; do not describe this CI as a new live PCK verification.
 - Independent local real-byte receipt: `evidence/prism-sentinel-real-pck-content-hold-20261102.json`.
 
+## Verified source-level root cause (immutable e432d94)
+
+Read-only inspection of `3d-game-factory/products/prism-route-3d/export_presets.cfg` at e432d94 shows `export_filter="all_resources"` with `exclude_filter=""`. Therefore the project currently exports internal store, manifest and tests along with game assets. `scripts/main.gd` builds the three target towers as identical gold BoxMesh nodes and changes completed towers to green; it does not create world-space numbered labels on each tower. The status bar reports `Towers 0/3` / `塔 0/3`, which is progress, not a visible target order map. This is a verified source-level readability gap, **not** a completed visual usability test.
+
 ## Proposed change for the next explicitly authorized gameplay/export revision
 
 In the **new revision only**, update the Godot project's `products/prism-route-3d/export_presets.cfg` Windows export preset's `exclude_filter` to omit the exact files above. Example candidate glob list (must be verified against Godot 4.3 export behavior): `store/approved-identity.json,product-manifest.json,tests/*,tests/**/*`. Prefer an explicit export allowlist or staged consumer-only project if the exclusion globs do not remove both test .gdc and .remap. Do **not** remove `scripts/game_logic.gd`, `scripts/main.gd`, `scripts/save_store.gd`, `scenes/main.tscn` or the runtime resources.
