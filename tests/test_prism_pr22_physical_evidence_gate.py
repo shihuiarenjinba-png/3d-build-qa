@@ -29,7 +29,7 @@ class PhysicalPR22Tests(unittest.TestCase):
             })
             s.update({field: True for field in gate.OBSERVATIONS})
             for state, filename in s["screenshots"].items():
-                (cls.root / filename).write_bytes(b"fixture-not-a-real-png-" + filename.encode() * 200)
+                (cls.root / filename).write_bytes(b"fixture-not-a-real-png-" + filename.encode() * 600)
 
     @classmethod
     def tearDownClass(cls):
