@@ -129,9 +129,9 @@ class ProvisionerCustodyContract(unittest.TestCase):
                     for name, data in baseline}
         entries = list(baseline)
         if mutation == "old_pck":
-            entries[1] = ("candidate.pck", b"synthetic-legacy-pck!")
+            entries[1] = ("candidate.pck", b"synthetic-sentinel-pcK")
         elif mutation == "manifest":
-            entries[2] = ("export-evidence.json", b'{"test_fixture":"forged"}')
+            entries[2] = ("export-evidence.json", json.dumps({"test_fixture": "synthetic_bad!"}).encode("utf-8"))
         elif mutation == "extra":
             entries.append(("unsigned-qa-fixture.msix", b"not a product"))
         elif mutation == "duplicate":
