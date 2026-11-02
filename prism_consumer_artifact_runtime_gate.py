@@ -12,7 +12,7 @@ import stat
 import zipfile
 
 SOURCE = '0878f48c79073596e30fed37a5703e0826389862'
-REQUEST = '3d-prism-route-3d-3c5a1e683711'
+REQUEST = '3d-prism-route-3d-0878f48c7907'
 ARTIFACT_ID = 13142680551
 RUN_ID = 41444879105
 ZIP_SHA = '447c18e789acc1b1ca12c08bdce8b3cda030baf0c7abc70a452bde7e0c748800'
