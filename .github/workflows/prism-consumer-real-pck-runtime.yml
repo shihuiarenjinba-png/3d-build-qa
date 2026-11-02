@@ -111,6 +111,7 @@ jobs:
           assert 'clock_frozen_until_start' in x['godot_4_3_runtime_assertions']
           assert 'bilingual_start_guide' in x['godot_4_3_runtime_assertions']
           assert 'hud_contrast_and_type' in x['godot_4_3_runtime_assertions']
+          assert 'bilingual_hint_single_line_1024' in x['godot_4_3_runtime_assertions']
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
       - name: Preserve runtime evidence, never label as Store screenshots
