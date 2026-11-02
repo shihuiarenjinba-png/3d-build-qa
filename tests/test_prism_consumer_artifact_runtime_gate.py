@@ -32,7 +32,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
             'assertions': [
                 'first_30s_goal','bilingual_start_guide','clock_frozen_until_start','tower_order_1_2_3','next_tower_hud',
                 'sentinel_telegraph_and_hit','time_and_warp_trap','pause',
-                'win','timeout','restart','english_japanese','board_visible_1024x768',
+                'win','timeout','restart','english_japanese','board_visible_1024x768','hud_contrast_and_type',
             ],
         }
 
@@ -89,7 +89,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
     def test_fixed_new_revision_not_old(self):
         self.assertEqual(REQUEST, '3d-prism-route-3d-' + SOURCE[:12])
         self.assertNotEqual(MEMBERS['candidate.pck'][1], '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03')
-        self.assertEqual(ZIP_SHA, '447c18e789acc1b1ca12c08bdce8b3cda030baf0c7abc70a452bde7e0c748800')
+        self.assertEqual(ZIP_SHA, 'a04de188d2dd8c3bfbf454cffe77a4eb58fd99e0c5a7e247d95062523e2489c7')
 
 if __name__ == '__main__':
     unittest.main()

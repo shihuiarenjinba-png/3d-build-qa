@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "0878f48c79073596e30fed37a5703e0826389862"
-const REQUEST = "3d-prism-route-3d-0878f48c7907"
-const PCK_SHA = "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc"
+const SOURCE = "f015db1762fb63696bcca304028871235142bf3d"
+const REQUEST = "3d-prism-route-3d-f015db1762fb"
+const PCK_SHA = "10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -76,6 +76,22 @@ func _run() -> void:
     for i in range(3):
         var marker = scene.get("tower_order_labels")[i]
         check(marker is Label3D and marker.text == str(i + 1) and marker.visible, "world-space tower number " + str(i + 1))
+    # Inspect UI theme on the actual loaded PCK, not a source-level fixture.
+    var status = scene.get("status_label") as Label
+    var scan = scene.get("scan_label") as Label
+    var hint = scene.get("hint_label") as Label
+    var restart = scene.get("restart_button") as Button
+    check(status.get_theme_font_size("font_size") >= 22 and scan.get_theme_font_size("font_size") >= 19 and hint.get_theme_font_size("font_size") >= 20 and restart.get_theme_font_size("font_size") >= 19,
+          "actual compiled HUD font sizes satisfy consumer legibility floor")
+    var top_panel = status.get_parent().get_parent() as PanelContainer
+    var bottom_panel = hint.get_parent() as PanelContainer
+    var top_style = top_panel.get_theme_stylebox("panel") as StyleBoxFlat
+    var bottom_style = bottom_panel.get_theme_stylebox("panel") as StyleBoxFlat
+    var hud_text = status.get_theme_color("font_color")
+    check(top_style != null and bottom_style != null and top_style.bg_color.a >= 0.95 and bottom_style.bg_color.a >= 0.95,
+          "actual compiled HUD has opaque high-contrast panels")
+    check(hud_text.get_luminance() - top_style.bg_color.get_luminance() >= 0.70 and hint.get_theme_color("font_color").get_luminance() - bottom_style.bg_color.get_luminance() >= 0.70,
+          "actual compiled HUD contrast above readability floor")
     check(scene.get("status_label").text.contains("NEXT Tower 1"), "first-frame next-tower HUD")
     check(scene.get("hint_label").text.contains("1→2→3"), "first-frame ordered goal")
     check(scene.get("scan_label").text.contains("warning"), "first-frame Sentinel warning")
@@ -149,7 +165,7 @@ func _run() -> void:
     var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
     check(japanese_glyphs_available, "embedded Japanese glyphs must render from actual PCK")
 
-    var assertions = ["first_30s_goal", "bilingual_start_guide", "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768"]
+    var assertions = ["first_30s_goal", "bilingual_start_guide", "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768", "hud_contrast_and_type"]
     var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "board_colored_bounds": board_bounds, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
     var file = FileAccess.open(OS.get_environment("PRISM_RUNTIME_RECEIPT"), FileAccess.WRITE)
     check(file != null, "cannot write PCK runtime receipt")

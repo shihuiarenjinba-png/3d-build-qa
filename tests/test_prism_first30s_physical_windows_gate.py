@@ -104,9 +104,9 @@ class PhysicalGateTests(unittest.TestCase):
                 with self.assertRaises(PhysicalGateHold):
                     self.check(item)
 
-    def test_old_pr18_lineage_cannot_pass_as_new_pr19(self):
+    def test_old_pr18_lineage_cannot_pass_as_new_pr20(self):
         # EXE template may have the same SHA across revisions. The compiled
-        # PCK, source, request and Artifact must independently match PR19.
+        # PCK, source, request and Artifact must independently match PR20.
         stale = copy.deepcopy(self.capture)
         stale.update({
             "source_sha": "3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d",
@@ -123,6 +123,17 @@ class PhysicalGateTests(unittest.TestCase):
                    "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060"):
             with self.assertRaisesRegex(PhysicalGateHold, "exact pck_path"):
                 evaluate(copy.deepcopy(self.capture), self.root, windows_host=True)
+
+    def test_previous_pr19_source_and_pck_cannot_be_relabelled_pr20(self):
+        previous = copy.deepcopy(self.capture)
+        previous.update({
+            "source_sha": "0878f48c79073596e30fed37a5703e0826389862",
+            "request_id": "3d-prism-route-3d-0878f48c7907",
+            "factory_artifact_id": 13142680551,
+            "pck_sha256": "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc",
+        })
+        with self.assertRaisesRegex(PhysicalGateHold, "PROVENANCE_HOLD"):
+            self.check(previous)
 
     def test_first30s_and_human_90s_fail_closed(self):
         for key, bad in (

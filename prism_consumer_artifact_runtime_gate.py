@@ -11,16 +11,16 @@ from pathlib import Path
 import stat
 import zipfile
 
-SOURCE = '0878f48c79073596e30fed37a5703e0826389862'
-REQUEST = '3d-prism-route-3d-0878f48c7907'
-ARTIFACT_ID = 13142680551
-RUN_ID = 41444879105
-ZIP_SHA = '447c18e789acc1b1ca12c08bdce8b3cda030baf0c7abc70a452bde7e0c748800'
+SOURCE = 'f015db1762fb63696bcca304028871235142bf3d'
+REQUEST = '3d-prism-route-3d-f015db1762fb'
+ARTIFACT_ID = 13149467845
+RUN_ID = 41463172094
+ZIP_SHA = 'a04de188d2dd8c3bfbf454cffe77a4eb58fd99e0c5a7e247d95062523e2489c7'
 OLD_PCK = '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03'
 MEMBERS = {
     'candidate.exe': (84214784, '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13'),
-    'candidate.pck': (6979328, '4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc'),
-    'export-evidence.json': (672, '5d06d46fc2a3a19325e77edc311f4dcb58d456c0dc9df5e872242b8c6098f11e'),
+    'candidate.pck': (6982288, '10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9'),
+    'export-evidence.json': (668, '34528d42e14378b6236dfb95428ee727a4c6304be0021c5d1325b8b433b8766b'),
 }
 REQUIRED_RESOURCES = {
     'res://project.binary', 'res://scenes/main.tscn.remap',
@@ -48,7 +48,7 @@ def unique_pairs(pairs):
 def verify_archive(path: Path, *, extract_to: Path | None = None):
     from prism_sentinel_release_pck_content_gate import parse_pck, prohibited_resource
     need(path.is_file() and not path.is_symlink(), 'missing or symlink ZIP')
-    need(path.stat().st_size == 37793096, 'ZIP size drift')
+    need(path.stat().st_size == 37794197, 'ZIP size drift')
     need(sha(path.read_bytes()) == ZIP_SHA, 'ZIP SHA drift')
     with zipfile.ZipFile(path) as z:
         infos = z.infolist()
@@ -63,7 +63,7 @@ def verify_archive(path: Path, *, extract_to: Path | None = None):
         need(manifest.get('schema_version') == 1 and manifest.get('slug') == 'prism-route-3d' and
              manifest.get('product_type') == 'GAME_3D' and
              manifest.get('source_repository') == 'shihuiarenjinba-png/3d-game-factory' and
-             manifest.get('source_branch') == 'codex/prism-first30s-clarity-20261102' and
+             manifest.get('source_branch') == 'codex/prism-hud-contrast-20261102' and
              manifest.get('source_sha') == SOURCE and manifest.get('request_id') == REQUEST and
              manifest.get('factory_build_head') == SOURCE, 'new revision source/request/build drift')
         for kind in ('exe', 'pck'):
@@ -126,7 +126,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
     required = {'first_30s_goal', 'bilingual_start_guide', 'clock_frozen_until_start', 'tower_order_1_2_3', 'next_tower_hud',
                 'sentinel_telegraph_and_hit', 'time_and_warp_trap',
                 'pause', 'win', 'timeout', 'restart', 'english_japanese',
-                'board_visible_1024x768'}
+                'board_visible_1024x768', 'hud_contrast_and_type'}
     need(set(runtime.get('assertions', [])) == required,
          'missing or unexpected runtime assertions')
     bounds = runtime.get('board_colored_bounds')
