@@ -158,17 +158,26 @@ func _run() -> void:
     check(game.status == "failed" and scene.get("hint_label").text.contains("Time up."), "90s timeout and failure reason")
     scene.call("_toggle_language")
     scene.call("_refresh_ui")
+    check(game.status == "failed" and game.remaining <= 0.0, "actual timeout state before defeat frame")
     check(scene.get("status_label").text.contains("次の塔") and scene.get("hint_label").text.contains("時間切れ"), "Japanese failure and goal")
+    await _screenshot("timeout_ja")
     scene.call("_restart")
-    check(game.status == "playing" and scene.get("hint_label").text.contains("1→2→3"), "Japanese retry instructions")
+    check(game.status == "playing" and game.remaining > 89.0 and game.next_target == 0, "post-defeat retry resets full timer and tower")
+    check(scene.get("hint_label").text.contains("1→2→3"), "Japanese retry instructions")
     check(hint.get_line_count() == 1, "Japanese gameplay hint must fit one line in actual 1024x768 PCK")
+    await _screenshot("retry_ja")
+    # Keep the original seventh JA baseline frame distinct from the new retry
+    # frame without changing the compiled PCK or simulating a human 90s play.
+    game.tick(0.6)
+    scene.call("_refresh_ui")
+    check(game.status == "playing" and game.remaining < 90.0, "JA baseline after retry advances")
     await _screenshot("ja")
     var japanese_font: Font = scene.get("language_button").get_theme_font("font")
     var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
     check(japanese_glyphs_available, "embedded Japanese glyphs must render from actual PCK")
 
     var assertions = ["first_30s_goal", "bilingual_start_guide", "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768", "hud_contrast_and_type", "bilingual_hint_single_line_1024"]
-    var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "board_colored_bounds": board_bounds, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
+    var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "board_colored_bounds": board_bounds, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "timeout_retry_states": {"capture_kind": "GODOT_4_3_SOFTWARE_RENDER_TIME_ADVANCED_NOT_HUMAN", "timeout_status": "failed", "timeout_language": "ja", "timeout_reason": "時間切れ", "timeout_remaining_seconds": 0, "retry_status": "playing", "retry_language": "ja", "retry_next_target": 0, "retry_remaining_seconds": 90, "frame_names": ["timeout_ja", "retry_ja"]}, "sale_ready": false}
     var file = FileAccess.open(OS.get_environment("PRISM_RUNTIME_RECEIPT"), FileAccess.WRITE)
     check(file != null, "cannot write PCK runtime receipt")
     file.store_string(JSON.stringify(receipt, "  ") + "\n")
