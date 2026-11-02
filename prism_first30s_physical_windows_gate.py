@@ -59,7 +59,7 @@ def timestamp(value: str) -> dt.datetime:
 def check_png(path: Path) -> str:
     require(path.is_file() and not path.is_symlink(), "missing or symlink screenshot")
     data = path.read_bytes()
-    require(len(data) > 1024 and data[:8] == b"\\x89PNG\\r\\n\\x1a\\n",
+    require(len(data) > 1024 and data[:8] == b"\x89PNG\r\n\x1a\n",
             "invalid screenshot PNG")
     pos, dimensions, idat, ended = 8, None, False, False
     while pos < len(data):
@@ -177,7 +177,7 @@ def main(argv=None) -> int:
             "human_review_required": True,
         }
         code = 2
-    payload = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\\n"
+    payload = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if args.out:
         args.out.write_text(payload, encoding="utf-8")
     print(payload, end="")
