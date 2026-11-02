@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "da6f7c129687922c58c43496da4667ecef903e17"
-const REQUEST = "3d-prism-route-3d-da6f7c129687"
-const PCK_SHA = "6e04300b176f923c9dda5777c5115af4e7670dad1d2c677fb271ba9e395fef57"
+const SOURCE = "dc2235a481b50ffe77a20c07bc7fdf46b023236e"
+const REQUEST = "3d-prism-route-3d-dc2235a481b5"
+const PCK_SHA = "92d4a653bc27dc1da358c0a03161f5f701d5f14f57f8fcb6353b43ea19fdebd9"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -104,6 +104,7 @@ func _run() -> void:
     await _screenshot("ja")
     var japanese_font: Font = scene.get("language_button").get_theme_font("font")
     var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
+    check(japanese_glyphs_available, "embedded Japanese glyphs must render from actual PCK")
 
     var assertions = ["first_30s_goal", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese"]
     var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
