@@ -92,16 +92,37 @@ class PhysicalGateTests(unittest.TestCase):
 
     def test_wrong_lineage_or_missing_physical_attestation(self):
         for key, bad in (
-            ("source_sha", "9a73d0d56427b70fc0e0eba705a6be3e71c59390"),
-            ("request_id", "3d-prism-route-3d-9a73d0d56427"),
-            ("pck_sha256", "old-pck"), ("physical_device", False),
-            ("operator", ""), ("factory_artifact_id", 13127360704),
+            ("source_sha", "3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d"),
+            ("request_id", "3d-prism-route-3d-3c5a1e683711"),
+            ("pck_sha256", "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060"),
+            ("physical_device", False), ("operator", ""),
+            ("factory_artifact_id", 13130487252),
         ):
             with self.subTest(key=key):
                 item = copy.deepcopy(self.capture)
                 item[key] = bad
                 with self.assertRaises(PhysicalGateHold):
                     self.check(item)
+
+    def test_old_pr18_lineage_cannot_pass_as_new_pr19(self):
+        # EXE template may have the same SHA across revisions. The compiled
+        # PCK, source, request and Artifact must independently match PR19.
+        stale = copy.deepcopy(self.capture)
+        stale.update({
+            "source_sha": "3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d",
+            "request_id": "3d-prism-route-3d-3c5a1e683711",
+            "factory_artifact_id": 13130487252,
+            "pck_sha256": "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060",
+        })
+        with self.assertRaisesRegex(PhysicalGateHold, "PROVENANCE_HOLD"):
+            self.check(stale)
+        # A forged receipt that claims new lineage but points to old PCK
+        # bytes must still fail the real on-disk digest check.
+        with patch("prism_first30s_physical_windows_gate.digest",
+                   side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else
+                   "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060"):
+            with self.assertRaisesRegex(PhysicalGateHold, "exact pck_path"):
+                evaluate(copy.deepcopy(self.capture), self.root, windows_host=True)
 
     def test_first30s_and_human_90s_fail_closed(self):
         for key, bad in (
