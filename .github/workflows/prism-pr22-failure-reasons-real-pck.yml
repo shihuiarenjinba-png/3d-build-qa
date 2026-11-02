@@ -9,7 +9,7 @@ env:
   FACTORY_ARTIFACT_ID: '13180284133'
   FACTORY_SOURCE_SHA: 'f4b458384243fdf379683ca793329614f61c9ead'
   PRISM_EXPECTED_PCK_SHA: 'd1363805e4f899b0a895b6c4153f3fc902d548529c0cc47579b965666fcd98ec'
-  GH_TOKEN: @@{{ github.token }}
+  GH_TOKEN: ${{ github.token }}
 jobs:
   real-pr22-pck-ubuntu:
     runs-on: ubuntu-latest
@@ -74,8 +74,8 @@ jobs:
       - name: Execute actual PR22 compiled PCK and capture 8 bilingual frames
         shell: bash
         env:
-          PRISM_SCREENSHOT_DIR: @@{{ runner.temp }}/pr22/screenshots
-          PRISM_RUNTIME_RECEIPT: @@{{ runner.temp }}/pr22/godot-runtime.json
+          PRISM_SCREENSHOT_DIR: ${{ runner.temp }}/pr22/screenshots
+          PRISM_RUNTIME_RECEIPT: ${{ runner.temp }}/pr22/godot-runtime.json
         run: |
           set -euo pipefail
           mkdir -p "$PRISM_SCREENSHOT_DIR"
@@ -114,12 +114,12 @@ jobs:
         with:
           name: prism-pr22-real-pck-8-bilingual-failure-frames-not-physical
           path: |
-            @@{{ runner.temp }}/pr22/metadata.json
-            @@{{ runner.temp }}/pr22/byte-preflight.json
-            @@{{ runner.temp }}/pr22/godot-runtime.json
-            @@{{ runner.temp }}/pr22/godot-runtime.log
-            @@{{ runner.temp }}/pr22/independent-pr22-receipt.json
-            @@{{ runner.temp }}/pr22/screenshots/*.png
+            ${{ runner.temp }}/pr22/metadata.json
+            ${{ runner.temp }}/pr22/byte-preflight.json
+            ${{ runner.temp }}/pr22/godot-runtime.json
+            ${{ runner.temp }}/pr22/godot-runtime.log
+            ${{ runner.temp }}/pr22/independent-pr22-receipt.json
+            ${{ runner.temp }}/pr22/screenshots/*.png
           if-no-files-found: warn
           retention-days: 7
   pr22-byte-contract-windows:
