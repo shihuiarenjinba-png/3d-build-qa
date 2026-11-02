@@ -27,6 +27,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
             'pck_sha256': MEMBERS['candidate.pck'][1],
             'physical_windows_gui': 'DEFERRED_LOCAL_GATE',
             'sale_ready': False,
+            'japanese_font_glyphs_available': False,
             'assertions': [
                 'first_30s_goal','tower_order_1_2_3','next_tower_hud',
                 'sentinel_telegraph_and_hit','time_and_warp_trap','pause',
@@ -63,6 +64,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
                 ('physical_windows_gui', 'PASS'),
                 ('approved_package_version', '1.0.0.0'),
                 ('signed_product_msix', 'PASS'),
+                ('japanese_font_glyphs_available', 'PASS'),
             ):
                 with self.subTest(key=key), self.assertRaises(ArtifactRuntimeError):
                     finalize_runtime(self.preflight(), dict(self.runtime(), **{key:value}), Path(d))
