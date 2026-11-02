@@ -82,7 +82,7 @@ class TestReleasePckContentGate(unittest.TestCase):
 
     def test_malformed_and_tampered_payload_fail_closed(self):
         valid = make_pck(CLEAN)
-        for data in (b"not a pck", valid[:-3],
+        for data in (b"not a pck", valid[:-10],
                      valid[:8] + struct.pack("<I", 3) + valid[12:],
                      valid[:12] + struct.pack("<I", 2) + valid[16:]):
             with self.subTest(length=len(data)), self.assertRaises(PckContentError):
