@@ -11,16 +11,16 @@ from pathlib import Path
 import stat
 import zipfile
 
-SOURCE = 'da6f7c129687922c58c43496da4667ecef903e17'
-REQUEST = '3d-prism-route-3d-da6f7c129687'
-ARTIFACT_ID = 13118228531
-RUN_ID = 41394020607
-ZIP_SHA = '8e7610217874136197f7cf9157bcc239444c1ae74097b51a3b461c3d0d0c6390'
+SOURCE = 'dc2235a481b50ffe77a20c07bc7fdf46b023236e'
+REQUEST = '3d-prism-route-3d-dc2235a481b5'
+ARTIFACT_ID = 13124415197
+RUN_ID = 41407189827
+ZIP_SHA = '892e46a796fbf6acd525de78af7c16d5ff75d09ef0ba13e6aaa3ac98c98ca5fd'
 OLD_PCK = '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03'
 MEMBERS = {
     'candidate.exe': (84214784, '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13'),
-    'candidate.pck': (48320, '6e04300b176f923c9dda5777c5115af4e7670dad1d2c677fb271ba9e395fef57'),
-    'export-evidence.json': (675, 'd1cfb11bf106febec9376095045a6217885645ad8a4c5ae5a6527887f943d7e0'),
+    'candidate.pck': (6970320, '92d4a653bc27dc1da358c0a03161f5f701d5f14f57f8fcb6353b43ea19fdebd9'),
+    'export-evidence.json': (672, '785930a65e3d5ba7ccb0a495c16144b4619bae46eddab362fc9d5bd092120752'),
 }
 REQUIRED_RESOURCES = {
     'res://project.binary', 'res://scenes/main.tscn.remap',
@@ -48,7 +48,7 @@ def unique_pairs(pairs):
 def verify_archive(path: Path, *, extract_to: Path | None = None):
     from prism_sentinel_release_pck_content_gate import parse_pck, prohibited_resource
     need(path.is_file() and not path.is_symlink(), 'missing or symlink ZIP')
-    need(path.stat().st_size == 30873154, 'ZIP size drift')
+    need(path.stat().st_size == 37790061, 'ZIP size drift')
     need(sha(path.read_bytes()) == ZIP_SHA, 'ZIP SHA drift')
     with zipfile.ZipFile(path) as z:
         infos = z.infolist()
@@ -63,7 +63,7 @@ def verify_archive(path: Path, *, extract_to: Path | None = None):
         need(manifest.get('schema_version') == 1 and manifest.get('slug') == 'prism-route-3d' and
              manifest.get('product_type') == 'GAME_3D' and
              manifest.get('source_repository') == 'shihuiarenjinba-png/3d-game-factory' and
-             manifest.get('source_branch') == 'codex/prism-sentinel-consumer-pck-20261102' and
+             manifest.get('source_branch') == 'codex/prism-consumer-jp-font-20261102' and
              manifest.get('source_sha') == SOURCE and manifest.get('request_id') == REQUEST and
              manifest.get('factory_build_head') == SOURCE, 'new revision source/request/build drift')
         for kind in ('exe', 'pck'):
@@ -75,8 +75,12 @@ def verify_archive(path: Path, *, extract_to: Path | None = None):
         need(sha(pck) != OLD_PCK, 'old Sentinel PCK relabelled')
         entries = parse_pck(pck)
         paths = {e['path'] for e in entries}
-        need(len(entries) == 10 and REQUIRED_RESOURCES <= paths, 'new PCK missing expected compiled game resources')
+        need(len(entries) == 14 and REQUIRED_RESOURCES <= paths, 'new PCK missing expected compiled game resources')
         need(not any(prohibited_resource(e['path']) for e in entries), 'internal resources in consumer PCK')
+        need('res://assets/fonts/OFL.txt' in paths and
+             any('res://assets/fonts/NotoSansJP.ttf' in p for p in paths) and
+             any(p.endswith('.fontdata') for p in paths),
+             'RELEASE_JP_FONT_CONTENT_HOLD: embedded font/license missing from real PCK')
         if extract_to is not None:
             extract_to.mkdir(parents=True, exist_ok=True)
             for name in MEMBERS:
@@ -117,7 +121,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
          runtime.get('approved_package_version') is None and
          runtime.get('signed_product_msix') is None and
          runtime.get('store_submission_allowed') in (None, False) and
-         type(runtime.get('japanese_font_glyphs_available')) is bool,
+         runtime.get('japanese_font_glyphs_available') is True,
          'PCK runtime receipt does not bind new consumer artifact')
     required = {'first_30s_goal', 'tower_order_1_2_3', 'next_tower_hud',
                 'sentinel_telegraph_and_hit', 'time_and_warp_trap',
