@@ -75,6 +75,8 @@ def capture_template():
         "schema_version": 1, "capture_kind": "PHYSICAL_WINDOWS_OPERATOR_ATTESTATION",
         "source_sha": SOURCE, "request_id": REQUEST,
         "factory_artifact_id": ARTIFACT_ID,
+        "factory_artifact_expires_at": "2026-11-09T15:32:35Z",
+        "code_integrity_status": "NOT_CHECKED",
         "exe_sha256": MEMBERS["candidate.exe"][1],
         "pck_sha256": MEMBERS["candidate.pck"][1],
         "exe_path": None, "pck_path": None,
@@ -191,6 +193,9 @@ normal Windows policy allows candidate.exe. A block means DEFERRED_LOCAL_GATE.
    Record 30-second goal comprehension, Start-before-clock, tower 1->2->3,
    yellow warning/red scan, time/warp traps, outcome, retry, real 90 seconds.
    Record Windows build, actual tester and timezone-aware wall-clock timestamps.
+   Set code_integrity_status to ALLOWED_BY_EXISTING_POLICY only after actual
+   successful launch. If blocked, leave NOT_CHECKED or record BLOCKED_BY_CODE_INTEGRITY;
+   never bypass Windows security. Expired original Factory artifact is HOLD.
    Do not manufacture answers, manipulate time or replace missing screenshots.
 5. Copy physical-capture-TEMPLATE.json to physical-capture.json; fill real
    observations and paths. Save 6 DISTINCT 1024x768 PNGs per session in
