@@ -14,11 +14,11 @@ import platform
 import struct
 import zlib
 
-SOURCE = "0878f48c79073596e30fed37a5703e0826389862"
-REQUEST = "3d-prism-route-3d-0878f48c7907"
-ARTIFACT_ID = 13142680551
+SOURCE = "f015db1762fb63696bcca304028871235142bf3d"
+REQUEST = "3d-prism-route-3d-f015db1762fb"
+ARTIFACT_ID = 13149467845
 EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
-PCK_SHA = "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc"
+PCK_SHA = "10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9"
 SCREENSHOTS = ("guide", "active", "scan_warning", "trap", "outcome", "retry")
 OBSERVATIONS = (
     "goal_understood_in_30s", "tower_order_1_2_3_understood",
