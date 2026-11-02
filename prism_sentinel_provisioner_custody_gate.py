@@ -53,6 +53,11 @@ def validate_receipt(r):
          r.get("receipt_type") == "GAME_3D_SENTINEL_INDEPENDENT_ARCHIVE_CUSTODY_20261102" and
          r.get("product") == "Prism Route 3D" and r.get("slug") == "prism-route-3d",
          "wrong receipt/product")
+    # This is a pinned historical byte receipt, not proof of live artifact availability.
+    need(r.get("verified_at_utc") == "2026-11-01T23:28:26Z" and
+         isinstance(r.get("verification_method"), str) and
+         "independently hashed full local ZIP" in r["verification_method"],
+         "historical independent-byte receipt provenance mismatch")
     source, a, members, m, checks, old, route, downstream = (
         r.get(k) for k in ("source", "artifact", "members", "manifest", "checks",
                            "legacy_revision", "route", "downstream"))
@@ -70,7 +75,9 @@ def validate_receipt(r):
          a.get("archive_sha256") == ARCHIVE and
          a.get("github_digest") == "sha256:" + ARCHIVE and
          a.get("run_head_sha") == SOURCE and
-         a.get("artifact_name") == "godot-3d-factory-export-evidence",
+         a.get("artifact_name") == "godot-3d-factory-export-evidence" and
+         a.get("expires_at") == "2026-11-05T15:24:12Z" and
+         a.get("github_expired") is False,
          "Factory artifact provenance mismatch")
     need(set(members) == set(MEMBERS), "missing/extra member evidence")
     for name, (size, sha) in MEMBERS.items():
@@ -105,6 +112,12 @@ def validate_receipt(r):
     need(route.get("registration_type") == "MSIX_OR_PWA_GAME" and
          route.get("partner_center_selection") == "MSIX or PWA game",
          "incorrect Partner Center registration")
+    need(set(downstream) == {
+         "official_identity_cas", "package_version", "signed_product_msix",
+         "unsigned_qa_fixture_is_store_package", "windows_all_auto_intake",
+         "local_windows", "product_e2e", "store_submission_allowed",
+         "second_3d_product_allowed"},
+         "unexpected downstream field could claim unauthorized promotion")
     need(all(downstream.get(k) == "HOLD" for k in
              ("official_identity_cas", "package_version", "signed_product_msix",
               "windows_all_auto_intake", "product_e2e")) and
@@ -118,6 +131,7 @@ def validate_receipt(r):
             "exe_sha256": EXE, "pck_sha256": PCK,
             "archive_sha256": ARCHIVE, "receipt_correlated": True,
             "real_archive_bytes_verified_this_run": False,
+            "github_artifact_live_availability_checked_this_run": False,
             "official_identity_cas": "HOLD", "package_version": "HOLD",
             "signed_product_msix": "HOLD", "windows_all_auto_intake": "HOLD",
             "product_e2e": "HOLD", "store_submission_allowed": False}
@@ -126,7 +140,8 @@ def validate_receipt(r):
 def verify_archive(path, r):
     result = validate_receipt(r)
     p = Path(path)
-    need(p.is_file() and not p.is_symlink() and p.stat().st_size == 30880705,
+    need(p.is_file() and not p.is_symlink() and
+         p.stat().st_size == r["artifact"]["archive_bytes"],
          "archive missing/unsafe/size mismatch")
     with p.open("rb") as stream:
         h = hashlib.sha256()
