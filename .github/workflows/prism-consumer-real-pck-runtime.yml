@@ -101,7 +101,7 @@ jobs:
           from pathlib import Path
           x=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pck-runtime-independent-receipt.json').read_text())
           assert x['status']=='PCK_LOADED_SOFTWARE_RUNTIME_QA_PASS_NOT_HUMAN_GUI'
-          assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==4
+          assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==5
           assert x['physical_windows_gui']=='DEFERRED_LOCAL_GATE'
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
