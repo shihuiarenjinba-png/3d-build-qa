@@ -34,6 +34,8 @@ jobs:
           python-version: '3.12'
       - name: Check Sentinel Provisioner custody fail-closed regression on Windows
         run: python -m unittest discover -s tests -p test_prism_sentinel_provisioner_custody_gate.py -v
+      - name: Check Sentinel product differential and unapproved version fail-closed on Windows
+        run: python -m unittest discover -s tests -p test_prism_sentinel_product_gate.py -v
       - name: Pack real unsigned MakeAppx fixture and verify ZIP/BlockMap/OPC bytes
         run: python tests/makeappx_windows_fixture.py
       - name: Retain fixture-only evidence (never a sellable product)
