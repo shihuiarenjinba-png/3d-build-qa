@@ -17,6 +17,7 @@ import zlib
 SOURCE = "066d9f51d58cfecb994665d5c31adb1156c38942"
 REQUEST = "3d-prism-route-3d-066d9f51d58c"
 ARTIFACT_ID = 13155398069
+FACTORY_ARTIFACT_EXPIRES_AT = "2026-11-09T15:32:35Z"
 EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
 PCK_SHA = "a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9"
 SCREENSHOTS = ("guide", "active", "scan_warning", "trap", "outcome", "retry")
@@ -85,7 +86,8 @@ def check_png(path: Path) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool) -> dict:
+def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool,
+             now: dt.datetime | None = None) -> dict:
     """Validate evidence, never attest that screenshots came from a physical GPU."""
     require(windows_host, "DEFERRED_LOCAL_GATE: physical Windows execution not available")
     require(capture.get("schema_version") == 1 and
@@ -95,6 +97,14 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool) -> dict
             capture.get("factory_artifact_id") == ARTIFACT_ID and
             capture.get("exe_sha256") == EXE_SHA and capture.get("pck_sha256") == PCK_SHA,
             "PROVENANCE_HOLD: source/request/EXE/PCK mismatch")
+    require(capture.get("factory_artifact_expires_at") == FACTORY_ARTIFACT_EXPIRES_AT,
+            "PROVENANCE_HOLD: Factory artifact expiry metadata mismatch")
+    current = now if now is not None else dt.datetime.now(dt.timezone.utc)
+    require(current.tzinfo is not None and current.utcoffset() is not None and
+            current < timestamp(FACTORY_ARTIFACT_EXPIRES_AT.replace("Z", "+00:00")),
+            "EXPIRED_FACTORY_ARTIFACT_HOLD: refresh exact source evidence")
+    require(capture.get("code_integrity_status") == "ALLOWED_BY_EXISTING_POLICY",
+            "CODE_INTEGRITY_HOLD: successful policy-compliant EXE launch not attested")
     require(capture.get("physical_device") is True and
             isinstance(capture.get("operator"), str) and len(capture["operator"].strip()) >= 3 and
             isinstance(capture.get("windows_build"), str) and len(capture["windows_build"].strip()) >= 5,
