@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      FACTORY_ARTIFACT_ID: '13124415197'
-      FACTORY_SOURCE_SHA: 'dc2235a481b50ffe77a20c07bc7fdf46b023236e'
-      PRISM_EXPECTED_PCK_SHA: '92d4a653bc27dc1da358c0a03161f5f701d5f14f57f8fcb6353b43ea19fdebd9'
+      FACTORY_ARTIFACT_ID: '13126698701'
+      FACTORY_SOURCE_SHA: '9a73d0d56427b70fc0e0eba705a6be3e71c59390'
+      PRISM_EXPECTED_PCK_SHA: '8a4930cc55e2c628b524a108f057f516e40e04f57f73d377e70ded51de958e36'
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +36,9 @@ jobs:
           import datetime,json,os
           from pathlib import Path
           m=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/metadata.json').read_text())
-          assert (m['id'],m['name'],m['size_in_bytes'])==(13124415197,'godot-3d-factory-export-evidence',37790061)
-          assert m['digest']=='sha256:892e46a796fbf6acd525de78af7c16d5ff75d09ef0ba13e6aaa3ac98c98ca5fd'
-          assert m['workflow_run']['id']==41407189827 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert (m['id'],m['name'],m['size_in_bytes'])==(13126698701,'godot-3d-factory-export-evidence',37790250)
+          assert m['digest']=='sha256:77e57ba5882d8ae82285c2274b908d525ae20ebd30c099d4801d19c2ed4ca2b4'
+          assert m['workflow_run']['id']==41414464542 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
           assert m['expired'] is False
           assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
           print('PASS: live metadata pinned; actual ZIP bytes checked next')
@@ -104,6 +104,8 @@ jobs:
           assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==5
           assert x['physical_windows_gui']=='DEFERRED_LOCAL_GATE'
           assert x['japanese_font_glyphs_available'] is True
+          assert x['board_colored_bounds']['width'] >= 420
+          assert x['board_colored_bounds']['height'] >= 290
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
       - name: Preserve runtime evidence, never label as Store screenshots

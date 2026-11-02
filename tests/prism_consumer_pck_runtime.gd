@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "dc2235a481b50ffe77a20c07bc7fdf46b023236e"
-const REQUEST = "3d-prism-route-3d-dc2235a481b5"
-const PCK_SHA = "92d4a653bc27dc1da358c0a03161f5f701d5f14f57f8fcb6353b43ea19fdebd9"
+const SOURCE = "9a73d0d56427b70fc0e0eba705a6be3e71c59390"
+const REQUEST = "3d-prism-route-3d-9a73d0d56427"
+const PCK_SHA = "8a4930cc55e2c628b524a108f057f516e40e04f57f73d377e70ded51de958e36"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -20,6 +20,28 @@ func _screenshot(name: String) -> void:
     check(image != null and image.get_width() == 1024 and image.get_height() == 768, "software-rendered 1024x768 frame " + name)
     var path: String = OS.get_environment("PRISM_SCREENSHOT_DIR").path_join(name + ".png")
     check(image.save_png(path) == OK, "save real PCK-rendered screenshot " + name)
+
+func _board_bounds() -> Dictionary:
+    # Quantify colored board geometry in an actual PCK frame, excluding HUD.
+    # This is not a human legibility test.
+    await RenderingServer.frame_post_draw
+    var image: Image = get_root().get_texture().get_image()
+    var left: int = 1024
+    var right: int = 0
+    var top: int = 768
+    var bottom: int = 0
+    for y in range(170, 660, 2):
+        for x in range(0, 1024, 2):
+            var c: Color = image.get_pixel(x, y)
+            var spread: float = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b))
+            if spread > 0.07 and c.r + c.g + c.b > 0.3:
+                left = min(left, x)
+                right = max(right, x)
+                top = min(top, y)
+                bottom = max(bottom, y)
+    check(right > left and bottom > top, "visible 3D board geometry")
+    return {"left": left, "right": right, "top": top, "bottom": bottom,
+            "width": right - left, "height": bottom - top}
 
 func _run() -> void:
     check(OS.get_environment("PRISM_EXPECTED_PCK_SHA") == PCK_SHA, "PCK SHA not preverified by byte gate")
@@ -42,7 +64,11 @@ func _run() -> void:
     check(scene.get("scan_label").text.contains("warning"), "first-frame Sentinel warning")
     check(scene.get("scan_markers").size() > 0, "real scan lane geometry")
     await _screenshot("initial")
-
+    var board_bounds: Dictionary = await _board_bounds()
+    check(board_bounds["width"] >= 420 and board_bounds["height"] >= 290,
+          "consumer board is visible at 1024x768")
+    check(board_bounds["top"] >= 165 and board_bounds["bottom"] <= 670,
+          "board must not overlap HUD")
     # Virtual first 30 seconds: warning precedes hit and penalty reason is visible.
     game.reset()
     check(game.move(Vector2i(0, -1)), "enter warned lane")
@@ -106,8 +132,8 @@ func _run() -> void:
     var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
     check(japanese_glyphs_available, "embedded Japanese glyphs must render from actual PCK")
 
-    var assertions = ["first_30s_goal", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese"]
-    var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
+    var assertions = ["first_30s_goal", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768"]
+    var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "board_colored_bounds": board_bounds, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
     var file = FileAccess.open(OS.get_environment("PRISM_RUNTIME_RECEIPT"), FileAccess.WRITE)
     check(file != null, "cannot write PCK runtime receipt")
     file.store_string(JSON.stringify(receipt, "  ") + "\n")
