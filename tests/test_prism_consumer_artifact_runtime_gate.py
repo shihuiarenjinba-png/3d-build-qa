@@ -30,7 +30,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
             'japanese_font_glyphs_available': True,
             'board_colored_bounds': {'left':250,'right':750,'top':200,'bottom':600,'width':500,'height':400},
             'assertions': [
-                'first_30s_goal','tower_order_1_2_3','next_tower_hud',
+                'first_30s_goal','bilingual_start_guide','clock_frozen_until_start','tower_order_1_2_3','next_tower_hud',
                 'sentinel_telegraph_and_hit','time_and_warp_trap','pause',
                 'win','timeout','restart','english_japanese','board_visible_1024x768',
             ],
@@ -89,7 +89,7 @@ class TestPrismConsumerArtifactRuntimeGate(unittest.TestCase):
     def test_fixed_new_revision_not_old(self):
         self.assertEqual(REQUEST, '3d-prism-route-3d-' + SOURCE[:12])
         self.assertNotEqual(MEMBERS['candidate.pck'][1], '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03')
-        self.assertEqual(ZIP_SHA, '77e57ba5882d8ae82285c2274b908d525ae20ebd30c099d4801d19c2ed4ca2b4')
+        self.assertEqual(ZIP_SHA, '447c18e789acc1b1ca12c08bdce8b3cda030baf0c7abc70a452bde7e0c748800')
 
 if __name__ == '__main__':
     unittest.main()

@@ -11,16 +11,16 @@ from pathlib import Path
 import stat
 import zipfile
 
-SOURCE = '9a73d0d56427b70fc0e0eba705a6be3e71c59390'
-REQUEST = '3d-prism-route-3d-9a73d0d56427'
-ARTIFACT_ID = 13126698701
-RUN_ID = 41414464542
-ZIP_SHA = '77e57ba5882d8ae82285c2274b908d525ae20ebd30c099d4801d19c2ed4ca2b4'
+SOURCE = '0878f48c79073596e30fed37a5703e0826389862'
+REQUEST = '3d-prism-route-3d-0878f48c7907'
+ARTIFACT_ID = 13142680551
+RUN_ID = 41444879105
+ZIP_SHA = '447c18e789acc1b1ca12c08bdce8b3cda030baf0c7abc70a452bde7e0c748800'
 OLD_PCK = '3e92b7b6e336a0ab40419448b79f330cf00e0cba4d6bb9ec864ba70b89ecdb03'
 MEMBERS = {
     'candidate.exe': (84214784, '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13'),
-    'candidate.pck': (6970928, '8a4930cc55e2c628b524a108f057f516e40e04f57f73d377e70ded51de958e36'),
-    'export-evidence.json': (681, 'fe91e728832a366e89696061c79e92017f6ce818cf8314ff788619462509e917'),
+    'candidate.pck': (6979328, '4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc'),
+    'export-evidence.json': (672, '5d06d46fc2a3a19325e77edc311f4dcb58d456c0dc9df5e872242b8c6098f11e'),
 }
 REQUIRED_RESOURCES = {
     'res://project.binary', 'res://scenes/main.tscn.remap',
@@ -48,7 +48,7 @@ def unique_pairs(pairs):
 def verify_archive(path: Path, *, extract_to: Path | None = None):
     from prism_sentinel_release_pck_content_gate import parse_pck, prohibited_resource
     need(path.is_file() and not path.is_symlink(), 'missing or symlink ZIP')
-    need(path.stat().st_size == 37790250, 'ZIP size drift')
+    need(path.stat().st_size == 37793096, 'ZIP size drift')
     need(sha(path.read_bytes()) == ZIP_SHA, 'ZIP SHA drift')
     with zipfile.ZipFile(path) as z:
         infos = z.infolist()
@@ -63,7 +63,7 @@ def verify_archive(path: Path, *, extract_to: Path | None = None):
         need(manifest.get('schema_version') == 1 and manifest.get('slug') == 'prism-route-3d' and
              manifest.get('product_type') == 'GAME_3D' and
              manifest.get('source_repository') == 'shihuiarenjinba-png/3d-game-factory' and
-             manifest.get('source_branch') == 'codex/prism-consumer-board-visibility-20261102' and
+             manifest.get('source_branch') == 'codex/prism-first30s-clarity-20261102' and
              manifest.get('source_sha') == SOURCE and manifest.get('request_id') == REQUEST and
              manifest.get('factory_build_head') == SOURCE, 'new revision source/request/build drift')
         for kind in ('exe', 'pck'):
@@ -123,7 +123,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
          runtime.get('store_submission_allowed') in (None, False) and
          runtime.get('japanese_font_glyphs_available') is True,
          'PCK runtime receipt does not bind new consumer artifact')
-    required = {'first_30s_goal', 'tower_order_1_2_3', 'next_tower_hud',
+    required = {'first_30s_goal', 'bilingual_start_guide', 'clock_frozen_until_start', 'tower_order_1_2_3', 'next_tower_hud',
                 'sentinel_telegraph_and_hit', 'time_and_warp_trap',
                 'pause', 'win', 'timeout', 'restart', 'english_japanese',
                 'board_visible_1024x768'}
@@ -141,7 +141,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
     screenshots = {}
     import struct
     import zlib
-    for name in ('initial', 'scan', 'trap', 'win', 'ja'):
+    for name in ('guide_en', 'guide_ja', 'initial', 'scan', 'trap', 'win', 'ja'):
         path = screenshot_dir / (name + '.png')
         need(path.is_file() and not path.is_symlink(), 'missing runtime screenshot: '+name)
         data = path.read_bytes()

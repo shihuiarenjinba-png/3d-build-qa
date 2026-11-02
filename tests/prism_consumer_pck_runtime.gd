@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "9a73d0d56427b70fc0e0eba705a6be3e71c59390"
-const REQUEST = "3d-prism-route-3d-9a73d0d56427"
-const PCK_SHA = "8a4930cc55e2c628b524a108f057f516e40e04f57f73d377e70ded51de958e36"
+const SOURCE = "0878f48c79073596e30fed37a5703e0826389862"
+const REQUEST = "3d-prism-route-3d-0878f48c7907"
+const PCK_SHA = "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -54,7 +54,24 @@ func _run() -> void:
     await process_frame
     await process_frame
     var game = scene.get("game")
-    check(game != null and game.remaining > 89.0 and game.remaining <= 90.0, "first frame 90s clock")
+    check(game != null and game.remaining == 90.0 and scene.get("onboarding_active"), "first-run guide holds the full 90s clock")
+    check(scene.get("onboarding_title").text.contains("1 → 2 → 3"), "English first-run tower goal visible")
+    check(scene.get("onboarding_details").text.contains("WASD") and scene.get("onboarding_details").text.contains("YELLOW") and scene.get("onboarding_details").text.contains("RED") and scene.get("onboarding_details").text.contains("ORANGE") and scene.get("onboarding_details").text.contains("PURPLE") and scene.get("onboarding_details").text.contains("90-second") and scene.get("onboarding_details").text.count("\n") == 3, "English four-line first-run guide explains movement, warning, traps, timer")
+    var guide_style = scene.get("onboarding_panel").get_theme_stylebox("panel") as StyleBoxFlat
+    check(guide_style != null and guide_style.bg_color.a >= 0.95 and guide_style.bg_color.r < 0.2, "guide is opaque and not transparent over gameplay")
+    var start_style = scene.get("start_button").get_theme_stylebox("normal") as StyleBoxFlat
+    check(start_style != null and start_style.bg_color.g > 0.4, "Start button is visually emphasized")
+    await _screenshot("guide_en")
+    scene.call("_toggle_language")
+    check(scene.get("onboarding_title").text.contains("1 → 2 → 3") and scene.get("onboarding_details").text.contains("WASD") and scene.get("onboarding_details").text.contains("黄色") and scene.get("onboarding_details").text.contains("赤") and scene.get("onboarding_details").text.contains("橙") and scene.get("onboarding_details").text.contains("紫") and scene.get("onboarding_details").text.contains("90秒") and scene.get("onboarding_details").text.count("\n") == 3, "Japanese four-line first-run guide explains movement, warning, traps, timer")
+    await _screenshot("guide_ja")
+    scene.call("_toggle_language")
+    var guide_remaining: float = game.remaining
+    scene.call("_process", 30.0)
+    check(game.remaining == guide_remaining and game.scan_elapsed == 0.0, "30s reading time never consumes game clock or scan")
+    scene.call("_start_run")
+    check(not scene.get("onboarding_active") and not scene.get("onboarding_panel").visible, "Start dismisses first-run guide")
+    check(game.remaining > 89.0 and game.remaining <= 90.0, "90s clock starts after Start")
     check(scene.get("tower_order_labels").size() == 3, "three numbered world-space towers")
     for i in range(3):
         var marker = scene.get("tower_order_labels")[i]
@@ -132,12 +149,12 @@ func _run() -> void:
     var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
     check(japanese_glyphs_available, "embedded Japanese glyphs must render from actual PCK")
 
-    var assertions = ["first_30s_goal", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768"]
+    var assertions = ["first_30s_goal", "bilingual_start_guide", "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese", "board_visible_1024x768"]
     var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "board_colored_bounds": board_bounds, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
     var file = FileAccess.open(OS.get_environment("PRISM_RUNTIME_RECEIPT"), FileAccess.WRITE)
     check(file != null, "cannot write PCK runtime receipt")
     file.store_string(JSON.stringify(receipt, "  ") + "\n")
     file.close()
-    print("PASS: PRISM_CONSUMER_REAL_PCK_SOFTWARE_RUNTIME_90S_STATES_AND_4_SCREENSHOTS_NOT_HUMAN_GUI")
+    print("PASS: PRISM_CONSUMER_REAL_PCK_FIRST30S_90S_STATES_7_SCREENSHOTS_NOT_HUMAN_GUI")
     scene.queue_free()
     quit(0)
