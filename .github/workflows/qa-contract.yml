@@ -15,6 +15,14 @@ jobs:
           python-version: '3.12'
       - run: python -m compileall -q qa_gate.py msix_artifact_verify.py msix_zip_guard.py msix_blockmap_guard.py tests
       - run: python -m unittest discover -s tests -v
+      - name: Read-only consume pinned Provisioner-3D real-byte receipt (never Store approval)
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error --retry 2 --max-time 30 \
+            https://raw.githubusercontent.com/shihuiarenjinba-png/Repository-Provisioner-3D/6b2afaf2adeb5ee4c7cc24d76bcfa1c24db72e1a/handoffs/prism-sentinel-factory-byte-custody-20261102-0828jst.json \
+            -o "${RUNNER_TEMP}/provisioner-byte-custody.json"
+          cmp evidence/prism-sentinel-provisioner-byte-custody-snapshot.json "${RUNNER_TEMP}/provisioner-byte-custody.json"
+          python prism_sentinel_provisioner_custody_gate.py --receipt "${RUNNER_TEMP}/provisioner-byte-custody.json"
 
   makeappx-fixture:
     runs-on: windows-latest
@@ -24,6 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Check Sentinel Provisioner custody fail-closed regression on Windows
+        run: python -m unittest discover -s tests -p test_prism_sentinel_provisioner_custody_gate.py -v
       - name: Pack real unsigned MakeAppx fixture and verify ZIP/BlockMap/OPC bytes
         run: python tests/makeappx_windows_fixture.py
       - name: Retain fixture-only evidence (never a sellable product)
