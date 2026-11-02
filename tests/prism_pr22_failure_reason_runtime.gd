@@ -32,7 +32,7 @@ func _screenshot(name: String) -> void:
     var path: String = OS.get_environment("PRISM_SCREENSHOT_DIR").path_join(name + ".png")
     check(img.save_png(path) == OK, "cannot save " + name)
 
-func _record(scene: Node, game: Object, name: String, reason: String) -> void:
+func _record(scene: Node, game, name: String, reason: String) -> void:
     var language: String = name.substr(name.length() - 2, 2)
     check(scene.get("language") == language, "wrong language: " + name)
     scene.call("_refresh_ui")
@@ -54,7 +54,7 @@ func _record(scene: Node, game: Object, name: String, reason: String) -> void:
     }
     await _screenshot(name)
 
-func _record_pair(scene: Node, game: Object, cause: String) -> void:
+func _record_pair(scene: Node, game, cause: String) -> void:
     check(scene.get("language") == "en", "English expected at start of pair")
     await _record(scene, game, cause + "_en", cause if cause != "retry" else "")
     scene.call("_toggle_language")
