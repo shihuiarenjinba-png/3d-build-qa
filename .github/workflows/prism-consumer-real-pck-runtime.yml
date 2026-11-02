@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      FACTORY_ARTIFACT_ID: '13126698701'
-      FACTORY_SOURCE_SHA: '9a73d0d56427b70fc0e0eba705a6be3e71c59390'
-      PRISM_EXPECTED_PCK_SHA: '8a4930cc55e2c628b524a108f057f516e40e04f57f73d377e70ded51de958e36'
+      FACTORY_ARTIFACT_ID: '13129029523'
+      FACTORY_SOURCE_SHA: 'c8206fa9489491b1a779dc39eeaa4920bbf6e430'
+      PRISM_EXPECTED_PCK_SHA: 'd411a46c925c15ca2f1409700500537716a6c6fc5721894d5f0a2c31b2889236'
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +36,9 @@ jobs:
           import datetime,json,os
           from pathlib import Path
           m=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/metadata.json').read_text())
-          assert (m['id'],m['name'],m['size_in_bytes'])==(13126698701,'godot-3d-factory-export-evidence',37790250)
-          assert m['digest']=='sha256:77e57ba5882d8ae82285c2274b908d525ae20ebd30c099d4801d19c2ed4ca2b4'
-          assert m['workflow_run']['id']==41414464542 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert (m['id'],m['name'],m['size_in_bytes'])==(13129029523,'godot-3d-factory-export-evidence',37791912)
+          assert m['digest']=='sha256:fd9081c2519b37714536ad7549832da33c520f561451c05454f15e834b4ef9df'
+          assert m['workflow_run']['id']==41421961908 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
           assert m['expired'] is False
           assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
           print('PASS: live metadata pinned; actual ZIP bytes checked next')
@@ -69,7 +69,7 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y xvfb
           fi
-      - name: Execute compiled PCK in Godot Mesa/Xvfb and capture four actual frames
+      - name: Execute compiled PCK in Godot Mesa/Xvfb and capture seven actual frames
         shell: bash
         env:
           PRISM_SCREENSHOT_DIR: ${{ runner.temp }}/prism-real-pck/screenshots
@@ -85,7 +85,7 @@ jobs:
             --resolution 1024x768 \
             --script "$GITHUB_WORKSPACE/tests/prism_consumer_pck_runtime.gd" \
             2>&1 | tee "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
-          grep -q 'PASS: PRISM_CONSUMER_REAL_PCK_SOFTWARE_RUNTIME_90S_STATES_AND_4_SCREENSHOTS_NOT_HUMAN_GUI' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
+          grep -q 'PASS: PRISM_CONSUMER_REAL_PCK_FIRST30S_90S_STATES_7_SCREENSHOTS_NOT_HUMAN_GUI' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
           if grep -Eq '(^|[[:space:]])(SCRIPT )?ERROR:' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"; then exit 1; fi
       - name: Bind real PCK execution and screenshot hashes to exact Factory bytes
         shell: bash
@@ -101,11 +101,13 @@ jobs:
           from pathlib import Path
           x=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pck-runtime-independent-receipt.json').read_text())
           assert x['status']=='PCK_LOADED_SOFTWARE_RUNTIME_QA_PASS_NOT_HUMAN_GUI'
-          assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==5
+          assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==7
           assert x['physical_windows_gui']=='DEFERRED_LOCAL_GATE'
           assert x['japanese_font_glyphs_available'] is True
           assert x['board_colored_bounds']['width'] >= 420
           assert x['board_colored_bounds']['height'] >= 290
+          assert 'clock_frozen_until_start' in x['godot_4_3_runtime_assertions']
+          assert 'bilingual_start_guide' in x['godot_4_3_runtime_assertions']
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
       - name: Preserve runtime evidence, never label as Store screenshots
