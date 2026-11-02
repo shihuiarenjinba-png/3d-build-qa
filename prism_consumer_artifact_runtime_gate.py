@@ -116,7 +116,8 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
          runtime.get('identity_cas') in (None, 'HOLD_36_OWNER') and
          runtime.get('approved_package_version') is None and
          runtime.get('signed_product_msix') is None and
-         runtime.get('store_submission_allowed') in (None, False),
+         runtime.get('store_submission_allowed') in (None, False) and
+         type(runtime.get('japanese_font_glyphs_available')) is bool,
          'PCK runtime receipt does not bind new consumer artifact')
     required = {'first_30s_goal', 'tower_order_1_2_3', 'next_tower_hud',
                 'sentinel_telegraph_and_hit', 'time_and_warp_trap',
@@ -126,7 +127,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
     screenshots = {}
     import struct
     import zlib
-    for name in ('initial', 'scan', 'trap', 'win'):
+    for name in ('initial', 'scan', 'trap', 'win', 'ja'):
         path = screenshot_dir / (name + '.png')
         need(path.is_file() and not path.is_symlink(), 'missing runtime screenshot: '+name)
         data = path.read_bytes()
@@ -169,6 +170,8 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
             'human_90s_gameplay': 'HOLD',
             'dpi_125_150': 'HOLD',
             'store_screenshot_quality': 'HOLD',
+            'japanese_font_glyphs_available': runtime['japanese_font_glyphs_available'],
+            'japanese_visual_quality': ('HOLD_PENDING_PHYSICAL_WINDOWS_REVIEW' if runtime['japanese_font_glyphs_available'] else 'HOLD_MISSING_JAPANESE_GLYPHS_IN_SOFTWARE_RENDER'),
             'identity_cas': 'HOLD_36_OWNER',
             'package_version': 'HOLD', 'signed_product_msix': 'HOLD',
             'windows_all_auto_intake': 'HOLD', 'sale_ready': False,
