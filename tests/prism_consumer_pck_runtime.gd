@@ -101,9 +101,12 @@ func _run() -> void:
     check(scene.get("status_label").text.contains("次の塔") and scene.get("hint_label").text.contains("時間切れ"), "Japanese failure and goal")
     scene.call("_restart")
     check(game.status == "playing" and scene.get("hint_label").text.contains("1→2→3"), "Japanese retry instructions")
+    await _screenshot("ja")
+    var japanese_font: Font = scene.get("language_button").get_theme_font("font")
+    var japanese_glyphs_available: bool = japanese_font != null and japanese_font.has_char(0x65E5) and japanese_font.has_char(0x672C) and japanese_font.has_char(0x8A9E)
 
     var assertions = ["first_30s_goal", "tower_order_1_2_3", "next_tower_hud", "sentinel_telegraph_and_hit", "time_and_warp_trap", "pause", "win", "timeout", "restart", "english_japanese"]
-    var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "sale_ready": false}
+    var receipt = {"schema_version": 1, "runtime_kind": "GODOT_4_3_EXPORTED_PCK_LOADED_SOFTWARE_RENDER", "status": "PASS_PCK_LOADED_LOGIC_AND_RENDER", "source_sha": SOURCE, "request_id": REQUEST, "pck_sha256": PCK_SHA, "assertions": assertions, "physical_windows_gui": "DEFERRED_LOCAL_GATE", "japanese_font_glyphs_available": japanese_glyphs_available, "sale_ready": false}
     var file = FileAccess.open(OS.get_environment("PRISM_RUNTIME_RECEIPT"), FileAccess.WRITE)
     check(file != null, "cannot write PCK runtime receipt")
     file.store_string(JSON.stringify(receipt, "  ") + "\n")
