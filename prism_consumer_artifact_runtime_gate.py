@@ -126,7 +126,7 @@ def finalize_runtime(preflight: dict, runtime: dict, screenshot_dir: Path):
     required = {'first_30s_goal', 'bilingual_start_guide', 'clock_frozen_until_start', 'tower_order_1_2_3', 'next_tower_hud',
                 'sentinel_telegraph_and_hit', 'time_and_warp_trap',
                 'pause', 'win', 'timeout', 'restart', 'english_japanese',
-                'board_visible_1024x768'}
+                'board_visible_1024x768', 'hud_contrast_and_type'}
     need(set(runtime.get('assertions', [])) == required,
          'missing or unexpected runtime assertions')
     bounds = runtime.get('board_colored_bounds')
