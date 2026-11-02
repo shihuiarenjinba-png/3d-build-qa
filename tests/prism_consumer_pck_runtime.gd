@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "3c5a1e6837118a73609a0b9c9b7b54dfa4c14f0d"
+const SOURCE = "0878f48c79073596e30fed37a5703e0826389862"
 const REQUEST = "3d-prism-route-3d-3c5a1e683711"
-const PCK_SHA = "7a7d5243452786dcb7eb265d1dbdd6309e596f9d370d73bf0d8f8023b5096060"
+const PCK_SHA = "4036486c320c858b06a43ce632d063a6ab034f273b5f70e7861a5b663d1406fc"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -55,15 +55,15 @@ func _run() -> void:
     await process_frame
     var game = scene.get("game")
     check(game != null and game.remaining == 90.0 and scene.get("onboarding_active"), "first-run guide holds the full 90s clock")
-    check(scene.get("onboarding_title").text.contains("90 seconds"), "English first-run goal visible")
-    check(scene.get("onboarding_details").text.contains("1 → 2 → 3") and scene.get("onboarding_details").text.contains("Yellow") and scene.get("onboarding_details").text.contains("Orange"), "English first-run guide explains tower, scan and traps")
+    check(scene.get("onboarding_title").text.contains("1 → 2 → 3"), "English first-run tower goal visible")
+    check(scene.get("onboarding_details").text.contains("WASD") and scene.get("onboarding_details").text.contains("YELLOW") and scene.get("onboarding_details").text.contains("RED") and scene.get("onboarding_details").text.contains("ORANGE") and scene.get("onboarding_details").text.contains("PURPLE") and scene.get("onboarding_details").text.contains("90-second") and scene.get("onboarding_details").text.count("\n") == 3, "English four-line first-run guide explains movement, warning, traps, timer")
     var guide_style = scene.get("onboarding_panel").get_theme_stylebox("panel") as StyleBoxFlat
     check(guide_style != null and guide_style.bg_color.a >= 0.95 and guide_style.bg_color.r < 0.2, "guide is opaque and not transparent over gameplay")
     var start_style = scene.get("start_button").get_theme_stylebox("normal") as StyleBoxFlat
     check(start_style != null and start_style.bg_color.g > 0.4, "Start button is visually emphasized")
     await _screenshot("guide_en")
     scene.call("_toggle_language")
-    check(scene.get("onboarding_title").text.contains("90秒") and scene.get("onboarding_details").text.contains("黄色") and scene.get("onboarding_details").text.contains("紫"), "Japanese first-run guide explains tower, scan and traps")
+    check(scene.get("onboarding_title").text.contains("1 → 2 → 3") and scene.get("onboarding_details").text.contains("WASD") and scene.get("onboarding_details").text.contains("黄色") and scene.get("onboarding_details").text.contains("赤") and scene.get("onboarding_details").text.contains("橙") and scene.get("onboarding_details").text.contains("紫") and scene.get("onboarding_details").text.contains("90秒") and scene.get("onboarding_details").text.count("\n") == 3, "Japanese four-line first-run guide explains movement, warning, traps, timer")
     await _screenshot("guide_ja")
     scene.call("_toggle_language")
     var guide_remaining: float = game.remaining
