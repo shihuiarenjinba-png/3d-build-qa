@@ -138,7 +138,8 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool) -> dict
         for state in SCREENSHOTS:
             name = screenshots[state]
             require(isinstance(name, str) and Path(name).name == name and
-                    name.endswith(".png") and name not in (".png", "..png"),
+                    name.endswith(".png") and name not in (".png", "..png") and
+                    name.startswith(f"{lang}-{dpi}-"),
                     "unsafe screenshot name")
             h = check_png(screenshot_dir / name)
             require(h not in hashes, "duplicate frames cannot prove distinct gameplay states")
