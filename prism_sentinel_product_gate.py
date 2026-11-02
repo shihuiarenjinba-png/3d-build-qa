@@ -5,6 +5,8 @@ This module never verifies official Partner Center CAS or Store readiness.
 """
 from __future__ import annotations
 
+from prism_sentinel_provisioner_custody_gate import validate_receipt
+
 SENTINEL = "e432d94ed0db22878f61f1a8af140d7d7de2288f"
 REQUEST = "3d-prism-route-3d-e432d94ed0db"
 LEGACY = "15fdcb52e46e35e6de8e87c55af99719c21e09b9"
@@ -31,7 +33,7 @@ def require(condition, reason):
         raise ProductEvidenceError(reason)
 
 
-def inspect_product_evidence(audit, *, qa=None, identity=None):
+def inspect_product_evidence(audit, *, qa=None, identity=None, custody=None):
     """Correlate independent historical audit claims; always HOLD for product."""
     require(isinstance(audit, dict), "missing audit")
     require(audit.get("schema_version") == "1.0" and
@@ -76,6 +78,27 @@ def inspect_product_evidence(audit, *, qa=None, identity=None):
             legacy_msix.get("fixture_identity") is True and
             legacy_msix.get("appx_signature_present") is False,
             "legacy-vs-Sentinel differential mismatch")
+    # Cross-check the separate independently hashed Factory ZIP custody receipt.
+    # The historical receipt is NOT the bytes, and cannot authenticate a live run.
+    if custody is not None:
+        validate_receipt(custody)
+        c_artifact = custody["artifact"]
+        c_members = custody["members"]
+        c_old = custody["legacy_revision"]
+        require((c_artifact["run_id"], c_artifact["artifact_id"],
+                 c_artifact["archive_sha256"], c_artifact["archive_bytes"]) == ANCHORS["factory"],
+                "Factory custody vs differential audit mismatch")
+        require(c_members["candidate.exe"]["sha256"] == factory["exe_sha256"] and
+                c_members["candidate.exe"]["bytes"] == factory["exe_bytes"] and
+                c_members["candidate.pck"]["sha256"] == factory["pck_sha256"] and
+                c_members["candidate.pck"]["bytes"] == factory["pck_bytes"] and
+                custody["manifest"]["exe_sha256"] == EXE and
+                custody["manifest"]["pck_sha256"] == PCK and
+                custody["source"]["sha"] == SENTINEL and
+                custody["source"]["request_id"] == REQUEST and
+                c_old["pck_sha256"] == LEGACY_PCK and
+                legacy_msix["pck_sha256"] == c_old["pck_sha256"],
+                "independent custody EXE/PCK/manifest/legacy correlation mismatch")
     d = audit.get("decision")
     require(isinstance(d, dict) and
             d.get("registration_type") == "MSIX_OR_PWA_GAME" and
@@ -87,9 +110,21 @@ def inspect_product_evidence(audit, *, qa=None, identity=None):
             d.get("store_submission_allowed") is False and
             d.get("second_3d_product_allowed") is False,
             "unsafe downstream decision")
+    # A historical/fixture-only gate must not accept a guessed package version.
+    require(d.get("package_version") in (None, "HOLD") and
+            d.get("approved_package_version") is None and
+            d.get("signed_product_msix_sha256") is None and
+            d.get("identity_cas_commit") is None,
+            "unapproved version/signature/CAS promotion")
     identity_state = "HOLD_OFFICIAL_IDENTITY_MISSING"
     if identity is not None:
         require(isinstance(identity, dict), "invalid identity")
+        require(identity.get("store_id", "9N95J2T57B41") == "9N95J2T57B41" and
+                identity.get("registration_type", "MSIX_OR_PWA_GAME") == "MSIX_OR_PWA_GAME" and
+                identity.get("package_version") in (None, "HOLD") and
+                identity.get("approved_package_version") is None and
+                identity.get("cas_applied") is not True,
+                "unverified Store ID/registration/version/CAS")
         for key in ("source_sha", "verified_source_sha", "expected_head_sha"):
             if key in identity:
                 require(identity[key] == SENTINEL, "historical Identity source: " + key)
@@ -103,6 +138,10 @@ def inspect_product_evidence(audit, *, qa=None, identity=None):
                           else "HOLD_NEW_REVISION_CAS_NOT_BOUND")
     if qa is not None:
         require(isinstance(qa, dict), "invalid QA result")
+        require(qa.get("package_version") in (None, "HOLD") and
+                qa.get("package_kind") not in ("signed_product", "store_product") and
+                qa.get("cas_applied") is not True,
+                "fixture falsely promoted to approved package/version")
         require(qa.get("submission_authorized") is False and
                 qa.get("official_identity_verified") is False and
                 qa.get("signature_verified") is False,
@@ -125,6 +164,8 @@ def inspect_product_evidence(audit, *, qa=None, identity=None):
         "registration_type": "MSIX_OR_PWA_GAME",
         "identity_state": identity_state,
         "historical_byte_audit_correlated": True,
+        "independent_custody_receipt_correlated": custody is not None,
+        "real_archive_bytes_verified_this_run": False,
         "live_github_authenticated_by_this_gate": False,
         "official_identity_authenticated_by_this_gate": False,
         "real_product_msix_verified": False,
@@ -152,6 +193,7 @@ def main(argv=None):
     parser.add_argument("--audit", required=True, type=Path)
     parser.add_argument("--qa", type=Path)
     parser.add_argument("--identity", type=Path)
+    parser.add_argument("--custody", type=Path)
     args = parser.parse_args(argv)
 
     def load(path):
@@ -163,7 +205,8 @@ def main(argv=None):
     try:
         result = inspect_product_evidence(
             load(args.audit), qa=load(args.qa) if args.qa else None,
-            identity=load(args.identity) if args.identity else None)
+            identity=load(args.identity) if args.identity else None,
+            custody=load(args.custody) if args.custody else None)
     except (OSError, ValueError, UnicodeError, TypeError) as exc:
         result = {"status": "BLOCKED", "reason": str(exc)[:160],
                   "product_e2e": "HOLD", "store_submission_allowed": False}
