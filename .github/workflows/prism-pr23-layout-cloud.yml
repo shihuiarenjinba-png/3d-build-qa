@@ -1,0 +1,121 @@
+name: Prism PR23 exact real PCK responsive modal layout (software only)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  PRISM_EXPECTED_PCK_SHA: '1b2bf98fdfec56ce6d82a246b6beaa5b3a5305516616122f0ea7aa001d2a8df1'
+jobs:
+  pr23-real-pck-modal-layout-ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Negative fixtures — old PR22, false physical PASS, occluded HUD, clipped Start
+        run: python -m unittest discover -s tests -p 'test_prism_pr23_layout_gate.py' -v
+      - name: Download and rehash exact PR23 Factory EXE PCK manifest ZIP CRC
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr23-layout"
+          curl -fLsS --retry 3 --max-time 180 \
+            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/13193637844/zip' \
+            -o "$RUNNER_TEMP/pr23-layout/factory.zip"
+          python prism_pr23_factory_gate.py \
+            --archive "$RUNNER_TEMP/pr23-layout/factory.zip" \
+            --extract-to "$RUNNER_TEMP/pr23-layout/payload" \
+            --out "$RUNNER_TEMP/pr23-layout/byte-preflight.json"
+      - name: Install official Godot 4.3 and Mesa Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 \
+            'https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip' \
+            -o "$RUNNER_TEMP/pr23-layout/godot.zip"
+          mkdir -p "$RUNNER_TEMP/pr23-layout/godot"
+          unzip -q "$RUNNER_TEMP/pr23-layout/godot.zip" -d "$RUNNER_TEMP/pr23-layout/godot"
+          chmod +x "$RUNNER_TEMP/pr23-layout/godot/Godot_v4.3-stable_linux.x86_64"
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb
+          fi
+      - name: Capture PR23 modal and after-Start frames in 12 modeled scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/pr23-layout"
+          mkdir -p "$ROOT/screenshots" "$ROOT/receipts"
+          GODOT="$ROOT/godot/Godot_v4.3-stable_linux.x86_64"
+          for size in 1024x768 1024x720; do
+            for dpi in 100 125 150; do
+              for locale in en ja; do
+                name="${size}_${dpi}_${locale}"
+                echo "::group::PR23 $name"
+                PRISM_LAYOUT_LOCALE="$locale" PRISM_LAYOUT_DPI="$dpi" \
+                PRISM_LAYOUT_SIZE="$size" PRISM_LAYOUT_OUTPUT="$ROOT/receipts/$name.json" \
+                LIBGL_ALWAYS_SOFTWARE=1 timeout 45s xvfb-run -a "$GODOT" \
+                  --path "$ROOT/payload" --main-pack "$ROOT/payload/candidate.pck" \
+                  --rendering-method gl_compatibility --audio-driver Dummy \
+                  --resolution "$size" \
+                  --script "$GITHUB_WORKSPACE/tests/prism_pr23_layout_runtime.gd" \
+                  > "$ROOT/$name.log" 2>&1 || { cat "$ROOT/$name.log"; exit 1; }
+                cat "$ROOT/$name.log"
+                grep -q "CAPTURED: PR23_SOFTWARE_LAYOUT_${size}_${dpi}_${locale}_NOT_PHYSICAL" "$ROOT/$name.log"
+                mv "$ROOT/receipts/$name.png" "$ROOT/screenshots/$name.png"
+                mv "$ROOT/receipts/${name}_active.png" "$ROOT/screenshots/${name}_active.png"
+                echo "::endgroup::"
+              done
+            done
+          done
+      - name: Fail-closed aggregate of 12 geometry receipts and 24 PNG CRC SHA dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_pr23_layout_gate.py \
+            --root "$RUNNER_TEMP/pr23-layout" \
+            --preflight "$RUNNER_TEMP/pr23-layout/byte-preflight.json" \
+            --out "$RUNNER_TEMP/pr23-layout/independent-layout-receipt.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads((Path(os.environ["RUNNER_TEMP"])/"pr23-layout/independent-layout-receipt.json").read_text())
+          assert r["status"]=="PR23_MODAL_LAYOUT_SOFTWARE_PASS_NOT_PHYSICAL"
+          assert r["scenario_count"]==12 and r["software_image_count"]==24
+          assert r["physical_windows_gui"]=="HOLD" and r["human_first_30s"]=="HOLD"
+          assert r["sale_ready"] is False and r["store_submission_allowed"] is False
+          print("PASS: PR23 software-only modal layout, physical/human HOLD")
+          PY
+      - name: Preserve exact PR23 PCK layout receipts and screenshots (not Store images)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-pr23-12-scenario-24-frame-layout-software-not-physical
+          path: |
+            ${{ runner.temp }}/pr23-layout/byte-preflight.json
+            ${{ runner.temp }}/pr23-layout/independent-layout-receipt.json
+            ${{ runner.temp }}/pr23-layout/receipts/*.json
+            ${{ runner.temp }}/pr23-layout/screenshots/*.png
+            ${{ runner.temp }}/pr23-layout/*.log
+          if-no-files-found: warn
+          retention-days: 6
+  pr23-negative-contract-windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Negative fixtures on Windows runner (not physical DPI QA)
+        run: python -m unittest discover -s tests -p 'test_prism_pr23_layout_gate.py' -v
