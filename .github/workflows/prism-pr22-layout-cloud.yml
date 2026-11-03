@@ -1,0 +1,111 @@
+name: Prism PR22 720px workarea and modeled DPI layout probe (QA only)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  PRISM_EXPECTED_PCK_SHA: 'd1363805e4f899b0a895b6c4153f3fc902d548529c0cc47579b965666fcd98ec'
+jobs:
+  read-only-real-pck-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download immutable Factory PR22 artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr22-layout"
+          curl -fLsS --retry 3 --max-time 180 \
+            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/13180284133/zip' \
+            -o "$RUNNER_TEMP/pr22-layout/factory.zip"
+          python prism_pr22_failure_reason_gate.py \
+            --archive "$RUNNER_TEMP/pr22-layout/factory.zip" \
+            --extract-to "$RUNNER_TEMP/pr22-layout/payload" \
+            --out "$RUNNER_TEMP/pr22-layout/byte-preflight.json"
+      - name: Install official Godot 4.3 Linux and Mesa Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 \
+            'https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip' \
+            -o "$RUNNER_TEMP/pr22-layout/godot.zip"
+          mkdir -p "$RUNNER_TEMP/pr22-layout/godot"
+          unzip -q "$RUNNER_TEMP/pr22-layout/godot.zip" -d "$RUNNER_TEMP/pr22-layout/godot"
+          chmod +x "$RUNNER_TEMP/pr22-layout/godot/Godot_v4.3-stable_linux.x86_64"
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb
+          fi
+      - name: Capture real PCK JA EN x 100 125 150 percent x 720 768
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/pr22-layout"
+          mkdir -p "$ROOT/screenshots" "$ROOT/receipts"
+          GODOT="$ROOT/godot/Godot_v4.3-stable_linux.x86_64"
+          for size in 1024x768 1024x720; do
+            for dpi in 100 125 150; do
+              for locale in en ja; do
+                name="${size}_${dpi}_${locale}"
+                echo "::group::Capture $name"
+                PRISM_LAYOUT_LOCALE="$locale" PRISM_LAYOUT_DPI="$dpi" \
+                PRISM_LAYOUT_SIZE="$size" PRISM_LAYOUT_OUTPUT="$ROOT/receipts/$name.json" \
+                LIBGL_ALWAYS_SOFTWARE=1 timeout 45s xvfb-run -a "$GODOT" \
+                  --path "$ROOT/payload" --main-pack "$ROOT/payload/candidate.pck" \
+                  --rendering-method gl_compatibility --audio-driver Dummy \
+                  --resolution "$size" \
+                  --script "$GITHUB_WORKSPACE/tests/prism_pr22_layout_runtime.gd" \
+                  > "$ROOT/$name.log" 2>&1 || { cat "$ROOT/$name.log"; exit 1; }
+                cat "$ROOT/$name.log"
+                grep -q "CAPTURED: PR22_SOFTWARE_LAYOUT_${size}_${dpi}_${locale}_NOT_PHYSICAL" "$ROOT/$name.log"
+                mv "$ROOT/receipts/$name.png" "$ROOT/screenshots/$name.png"
+                echo "::endgroup::"
+              done
+            done
+          done
+      - name: Emit read-only layout measurements, not physical PASS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"pr22-layout"
+          files=sorted((root/"receipts").glob("*.json"))
+          assert len(files)==12
+          for p in files:
+              x=json.loads(p.read_text())
+              assert x["source_sha"]=="f4b458384243fdf379683ca793329614f61c9ead"
+              assert x["pck_sha256"]=="d1363805e4f899b0a895b6c4153f3fc902d548529c0cc47579b965666fcd98ec"
+              assert x["physical_windows_gui"]=="HOLD" and x["sale_ready"] is False
+              bad=[k for k,v in x["nodes"].items() if not v["inside_viewport"]]
+              print(p.stem, "viewport", x["logical_viewport"],
+                    "actual", x["actual_image_width"], x["actual_image_height"],
+                    "outside",bad,
+                    "start",x["nodes"]["start"]["rect"],
+                    "status_text_width",x["nodes"]["status"]["text_width_unwrapped"],
+                    "status_box_width",x["nodes"]["status"]["rect"]["width"])
+          print("CAPTURE_ONLY: inspect screenshots and measurements before claiming layout PASS")
+          PY
+      - name: Preserve software screenshots and receipts (never physical QA)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-pr22-720-768-model-dpi-layout-probe-not-physical
+          path: |
+            ${{ runner.temp }}/pr22-layout/byte-preflight.json
+            ${{ runner.temp }}/pr22-layout/receipts/*.json
+            ${{ runner.temp }}/pr22-layout/screenshots/*.png
+            ${{ runner.temp }}/pr22-layout/*.log
+          if-no-files-found: warn
+          retention-days: 6
