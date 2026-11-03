@@ -3,7 +3,7 @@ extends SceneTree
 # The scale factor models UI scaling only; it is NOT a physical Windows DPI test.
 const SOURCE = "a8781693e8477ac1f96fff1c648ce48e39da6f42"
 const REQUEST = "3d-prism-route-3d-a8781693e847"
-const PCK_SHA = "PCK_SHA_PENDING_EXPORT"
+const PCK_SHA = "1b2bf98fdfec56ce6d82a246b6beaa5b3a5305516616122f0ea7aa001d2a8df1"
 
 func fail(reason: String) -> void:
     push_error("PR23_LAYOUT_CAPTURE_FAIL: " + reason)
