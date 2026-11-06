@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      FACTORY_ARTIFACT_ID: '13155398069'
-      FACTORY_SOURCE_SHA: '066d9f51d58cfecb994665d5c31adb1156c38942'
-      PRISM_EXPECTED_PCK_SHA: 'a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9'
+      FACTORY_ARTIFACT_ID: '13501257720'
+      FACTORY_SOURCE_SHA: 'f8d2bd2a57e2bfd604eb20199a693d8487040df8'
+      PRISM_EXPECTED_PCK_SHA: '625709b4a795f66340f54c95e591ff9734be68042dcbe43d7c5a34e698e35392'
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +40,9 @@ jobs:
           import datetime,json,os
           from pathlib import Path
           m=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/metadata.json').read_text())
-          assert (m['id'],m['name'],m['size_in_bytes'])==(13155398069,'godot-3d-factory-export-evidence',37794175)
-          assert m['digest']=='sha256:1a19000c225b5165a1280ec36b4dcf5eaec4287e39d50f86512b8e9f5ad4dd44'
-          assert m['workflow_run']['id']==41472458097 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert (m['id'],m['name'],m['size_in_bytes'])==(13501257720,'godot-3d-factory-export-evidence',37795971)
+          assert m['digest']=='sha256:c8790fdd805bee20dd9152350cf35233e53f0e91e2bf40ebe802e4b3cb473644'
+          assert m['workflow_run']['id']==42216823778 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
           assert m['expired'] is False
           assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
           print('PASS: live metadata pinned; actual ZIP bytes checked next')
