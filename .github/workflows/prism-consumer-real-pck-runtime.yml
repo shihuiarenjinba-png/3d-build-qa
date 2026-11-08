@@ -140,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_prism_pr21_timeout_retry_gate.py' -v
-          python prism_pr21_timeout_retry_gate.py \
+          python prism_pr25_timeout_retry_gate.py \
             --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
             --runtime "$RUNNER_TEMP/prism-real-pck/godot-runtime.json" \
             --baseline-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
@@ -151,7 +151,7 @@ jobs:
           from pathlib import Path
           root = Path(os.environ['RUNNER_TEMP']) / 'prism-real-pck'
           r = json.loads((root / 'pr21-timeout-retry-receipt.json').read_text())
-          assert r['status'] == 'PR21_EXACT_PCK_TIMEOUT_RETRY_TWO_STATES_VERIFIED_NOT_PHYSICAL'
+          assert r['status'] == 'PR25_EXACT_PCK_TIMEOUT_RETRY_TWO_STATES_VERIFIED_NOT_PHYSICAL'
           assert r['all_software_frame_sha256_count'] == 9
           assert set(r['new_software_frames_verified']) == {'timeout_ja', 'retry_ja'}
           assert r['physical_windows_gui'] == 'HOLD'
