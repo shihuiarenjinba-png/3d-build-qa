@@ -116,11 +116,11 @@ jobs:
           assert 'bilingual_hint_single_line_1024' in x['godot_4_3_runtime_assertions']
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
-      - name: Bind all seven PR21 software frames and SHA to the exact QA receipt
+      - name: Bind all seven current PR25 software frames and SHA to exact QA receipt
         shell: bash
         run: |
           set -euo pipefail
-          python prism_pr21_software_baseline_gate.py \
+          python prism_pr25_software_baseline_gate.py \
             --receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
             --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
             --out "$RUNNER_TEMP/prism-real-pck/pr21-software-baseline.json"
@@ -129,7 +129,7 @@ jobs:
           from pathlib import Path
           p = Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pr21-software-baseline.json'
           x = json.loads(p.read_text())
-          assert x['status'] == 'PR21_SOFTWARE_BASELINE_BYTES_VERIFIED_NOT_PHYSICAL'
+          assert x['status'] == 'PR25_SOFTWARE_BASELINE_BYTES_VERIFIED_NOT_PHYSICAL'
           assert x['software_screenshot_sha256_count'] == 7
           assert x['physical_windows_gui'] == 'HOLD'
           assert x['human_real_time_90s'] == 'HOLD'
