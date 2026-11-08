@@ -158,23 +158,23 @@ jobs:
           assert r['human_real_time_90s'] == 'HOLD'
           assert r['sale_ready'] is False and r['store_submission_allowed'] is False
           PY
-      - name: PR21 read-only physical Windows EXE/PCK handoff (exact Factory ZIP CRC and SHA)
+      - name: PR25 read-only physical Windows EXE/PCK handoff (exact Factory ZIP CRC and SHA)
         shell: bash
         run: |
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_prism_pr21_physical_handoff.py' -v
-          python prism_pr21_physical_handoff.py \
+          python prism_pr25_physical_handoff.py \
             --build "$RUNNER_TEMP/prism-real-pck/physical-windows-handoff" \
             --archive "$RUNNER_TEMP/prism-real-pck/factory.zip" \
             --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
             --software-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
             --screenshots "$RUNNER_TEMP/prism-real-pck/screenshots"
-          python prism_pr21_physical_handoff.py \
+          python prism_pr25_physical_handoff.py \
             --verify "$RUNNER_TEMP/prism-real-pck/physical-windows-handoff"
-      - name: Upload exact PR21 EXE/PCK and offline physical QA template (not Store)
+      - name: Upload exact PR25 EXE/PCK and offline physical QA template (not Store)
         uses: actions/upload-artifact@v4
         with:
-          name: prism-pr21-exact-binary-physical-qa-handoff-not-store
+          name: prism-pr25-exact-binary-physical-qa-handoff-not-store
           path: ${{ runner.temp }}/prism-real-pck/physical-windows-handoff/
           if-no-files-found: error
           retention-days: 7
