@@ -11,16 +11,16 @@ from pathlib import Path
 import stat
 import zipfile
 
-SOURCE = 'f8d2bd2a57e2bfd604eb20199a693d8487040df8'
-REQUEST = '3d-prism-route-3d-f8d2bd2a57e2'
-ARTIFACT_ID = 13501257720
-RUN_ID = 42216823778
-ZIP_SHA = 'c8790fdd805bee20dd9152350cf35233e53f0e91e2bf40ebe802e4b3cb473644'
+SOURCE = 'e8c77192a06527b005168359433f2868ff86708e'
+REQUEST = '3d-prism-route-3d-e8c77192a065'
+ARTIFACT_ID = 13614249496
+RUN_ID = 42475405044
+ZIP_SHA = 'dea496bfd9352b8aceeb4b0ff9e01aa4784307569d04fa08da2c2bbfd55448c1'
 OLD_PCK = '10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9'
 MEMBERS = {
     'candidate.exe': (84214784, '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13'),
-    'candidate.pck': (6987552, '625709b4a795f66340f54c95e591ff9734be68042dcbe43d7c5a34e698e35392'),
-    'export-evidence.json': (680, 'ca75ca253901f588ced767fddef2f89c9bc492dfa57b13f53a797ba42bee8203'),
+    'candidate.pck': (6987536, 'c4f36ed505dc447a5977d9cd5e1ed68d78d089d8b502184647acf44370261630'),
+    'export-evidence.json': (680, '29fc410de25d6e95ec987e6e2a889660496efb67cfdfc21d693996695be799fe'),
 }
 REQUIRED_RESOURCES = {
     'res://project.binary', 'res://scenes/main.tscn.remap',
@@ -48,7 +48,7 @@ def unique_pairs(pairs):
 def verify_archive(path: Path, *, extract_to: Path | None = None):
     from prism_sentinel_release_pck_content_gate import parse_pck, prohibited_resource
     need(path.is_file() and not path.is_symlink(), 'missing or symlink ZIP')
-    need(path.stat().st_size == 37795971, 'ZIP size drift')
+    need(path.stat().st_size == 37795955, 'ZIP size drift')
     need(sha(path.read_bytes()) == ZIP_SHA, 'ZIP SHA drift')
     with zipfile.ZipFile(path) as z:
         infos = z.infolist()
