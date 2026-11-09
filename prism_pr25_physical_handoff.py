@@ -218,7 +218,7 @@ if ($LASTEXITCODE -ne 0) { throw 'HOLD: immutable binary handoff failed verifica
 $exe = (Resolve-Path .\\candidate.exe).Path
 $pck = (Resolve-Path .\\candidate.pck).Path
 if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13') { throw 'EXE SHA mismatch' }
-if ((Get-FileHash $pck -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c4f36ed505dc447a5977d9cd5e1ed68d78d089d8b502184647acf44370261630') { throw 'PCK SHA mismatch' }
+if ((Get-FileHash $pck -Algorithm SHA256).Hash.ToLowerInvariant() -ne '189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9') { throw 'PCK SHA mismatch' }
 Write-Host 'Exact PR25 bytes verified; starting only under existing Windows security policy.'
 Start-Process -FilePath $exe -WorkingDirectory $PSScriptRoot -Wait
 """
