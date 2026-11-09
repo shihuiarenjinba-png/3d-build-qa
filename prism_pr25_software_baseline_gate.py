@@ -11,16 +11,16 @@ from pathlib import Path
 
 from prism_first30s_physical_windows_gate import check_png
 
-SOURCE = "e8c77192a06527b005168359433f2868ff86708e"
-REQUEST = "3d-prism-route-3d-e8c77192a065"
-FACTORY_RUN_ID = 42475405044
-FACTORY_ARTIFACT_ID = 13614249496
+SOURCE = "4c22875c5ed79d393516c6a7a95361b9e9ed1950"
+REQUEST = "3d-prism-route-3d-4c22875c5ed7"
+FACTORY_RUN_ID = 42545579783
+FACTORY_ARTIFACT_ID = 13642354096
 QA_RUN_ID = 41472861586
 QA_ARTIFACT_ID = 13156640316
-ZIP_SHA = "dea496bfd9352b8aceeb4b0ff9e01aa4784307569d04fa08da2c2bbfd55448c1"
+ZIP_SHA = "ea0f218078783866c44f946060df3422493fe73d45aec54789eb91cabe644d44"
 EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
-PCK_SHA = "c4f36ed505dc447a5977d9cd5e1ed68d78d089d8b502184647acf44370261630"
-MANIFEST_SHA = "29fc410de25d6e95ec987e6e2a889660496efb67cfdfc21d693996695be799fe"
+PCK_SHA = "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9"
+MANIFEST_SHA = "131256dac2eaa837cd5a447914dbe10c34b2f91db376adbc42f2659c75e019a7"
 FRAMES = ("guide_en", "guide_ja", "initial", "scan", "trap", "win", "ja")
 ASSERTIONS = {"bilingual_start_guide", "bilingual_hint_single_line_1024",
               "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud",
