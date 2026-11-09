@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "e8c77192a06527b005168359433f2868ff86708e"
-const REQUEST = "3d-prism-route-3d-e8c77192a065"
-const PCK_SHA = "c4f36ed505dc447a5977d9cd5e1ed68d78d089d8b502184647acf44370261630"
+const SOURCE = "4c22875c5ed79d393516c6a7a95361b9e9ed1950"
+const REQUEST = "3d-prism-route-3d-4c22875c5ed7"
+const PCK_SHA = "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
