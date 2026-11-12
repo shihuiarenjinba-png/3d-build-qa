@@ -14,12 +14,12 @@ import platform
 import struct
 import zlib
 
-SOURCE = "066d9f51d58cfecb994665d5c31adb1156c38942"
-REQUEST = "3d-prism-route-3d-066d9f51d58c"
-ARTIFACT_ID = 13155398069
-FACTORY_ARTIFACT_EXPIRES_AT = "2026-11-09T15:32:35Z"
+SOURCE = "4c22875c5ed79d393516c6a7a95361b9e9ed1950"
+REQUEST = "3d-prism-route-3d-4c22875c5ed7"
+ARTIFACT_ID = 13642354096
+FACTORY_ARTIFACT_EXPIRES_AT = "2026-11-15T00:00:00Z"
 EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
-PCK_SHA = "a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9"
+PCK_SHA = "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9"
 SCREENSHOTS = ("guide", "active", "scan_warning", "trap", "outcome", "retry")
 OBSERVATIONS = (
     "goal_understood_in_30s", "tower_order_1_2_3_understood",
@@ -116,13 +116,13 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool,
         require(path.is_file() and not path.is_symlink() and digest(path) == expected,
                 "PROVENANCE_HOLD: exact " + key + " bytes missing")
     sessions = capture.get("sessions")
-    require(isinstance(sessions, list) and len(sessions) == 4,
-            "require JA and EN at both 125% and 150%")
+    require(isinstance(sessions, list) and len(sessions) == 6,
+            "require JA and EN at 100%, 125%, and 150%")
     seen, hashes = set(), set()
     for session in sessions:
         require(isinstance(session, dict), "invalid session")
         lang, dpi = session.get("language"), session.get("dpi_percent")
-        require(lang in ("ja", "en") and type(dpi) is int and dpi in (125, 150),
+        require(lang in ("ja", "en") and type(dpi) is int and dpi in (100, 125, 150),
                 "unexpected language or DPI")
         require((lang, dpi) not in seen, "duplicate language/DPI session")
         seen.add((lang, dpi))
@@ -154,14 +154,14 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool,
             h = check_png(screenshot_dir / name)
             require(h not in hashes, "duplicate frames cannot prove distinct gameplay states")
             hashes.add(h)
-    require(seen == {(lang, dpi) for lang in ("ja", "en") for dpi in (125, 150)},
+    require(seen == {(lang, dpi) for lang in ("ja", "en") for dpi in (100, 125, 150)},
             "missing language/DPI coverage")
     return {
         "schema_version": 1,
         "status": "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED",
         "source_sha": SOURCE, "request_id": REQUEST, "factory_artifact_id": ARTIFACT_ID,
         "exe_sha256": EXE_SHA, "pck_sha256": PCK_SHA,
-        "operator_attested_sessions": 4, "physical_screenshot_sha256_count": len(hashes),
+        "operator_attested_sessions": 6, "physical_screenshot_sha256_count": len(hashes),
         "human_review_required": True, "physical_gui_automatically_proven": False,
         "identity_cas": "HOLD_36_OWNER", "package_version": "HOLD",
         "signed_product_msix": "HOLD", "sale_ready": False,
@@ -172,7 +172,7 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool,
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--software-receipt", type=Path, required=True,
-                        help="PR21 QA11 seven-frame independent runtime receipt")
+                        help="PR25 seven-frame independent runtime receipt")
     parser.add_argument("--software-screenshot-dir", type=Path, required=True,
                         help="seven original software QA screenshots")
     parser.add_argument("--capture", type=Path, required=True)
@@ -180,7 +180,7 @@ def main(argv=None) -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     try:
-        from prism_pr21_software_baseline_gate import verify_software_baseline, unique_pairs
+        from prism_pr25_software_baseline_gate import verify_software_baseline, unique_pairs
         baseline = json.loads(args.software_receipt.read_text(encoding="utf-8"),
                               object_pairs_hook=unique_pairs)
         verify_software_baseline(baseline, args.software_screenshot_dir)

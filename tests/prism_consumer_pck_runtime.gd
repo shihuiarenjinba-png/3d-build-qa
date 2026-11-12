@@ -1,9 +1,9 @@
 extends SceneTree
 # Execute compiled scripts/scenes from the exact SHA-pinned exported PCK.
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
-const SOURCE = "066d9f51d58cfecb994665d5c31adb1156c38942"
-const REQUEST = "3d-prism-route-3d-066d9f51d58c"
-const PCK_SHA = "a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9"
+const SOURCE = "4c22875c5ed79d393516c6a7a95361b9e9ed1950"
+const REQUEST = "3d-prism-route-3d-4c22875c5ed7"
+const PCK_SHA = "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
@@ -94,6 +94,8 @@ func _run() -> void:
           "actual compiled HUD contrast above readability floor")
     check(scene.get("status_label").text.contains("NEXT Tower 1"), "first-frame next-tower HUD")
     check(scene.get("hint_label").text.contains("1→2→3"), "first-frame ordered goal")
+    await process_frame
+    print("PCK_HINT_LAYOUT_DIAGNOSTIC: text=", JSON.stringify(hint.text), " lines=", hint.get_line_count(), " size=", hint.size, " parent_size=", hint.get_parent().size, " font_size=", hint.get_theme_font_size("font_size"))
     check(hint.get_line_count() == 1, "English gameplay hint must fit one line in actual 1024x768 PCK")
     check(scene.get("scan_label").text.contains("warning"), "first-frame Sentinel warning")
     check(scene.get("scan_markers").size() > 0, "real scan lane geometry")

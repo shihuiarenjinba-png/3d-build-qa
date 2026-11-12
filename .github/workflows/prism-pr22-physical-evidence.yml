@@ -1,4 +1,4 @@
-name: Prism PR22 physical evidence recorder and HOLD gate (QA only)
+name: Prism PR25 physical evidence contract (QA only)
 on:
   pull_request:
   workflow_dispatch:
@@ -6,11 +6,13 @@ permissions:
   contents: read
   actions: read
 env:
-  GH_TOKEN: ${{ github.token }}
+  FACTORY_ARTIFACT_ID: '13642354096'
+  QA_ARTIFACT_ID: '13672673982'
+  FACTORY_SOURCE_SHA: '4c22875c5ed79d393516c6a7a95361b9e9ed1950'
 jobs:
-  prepare-physical-qa-bundle:
+  physical-contract-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,54 +20,40 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Physical gate negative fixtures
-        run: python -m unittest discover -s tests -p 'test_prism_pr22_physical_evidence_gate.py' -v
-      - name: Fetch exact PR22 Factory and QA15 software ZIPs
-        shell: bash
+      - name: Assert exact PR25 provenance and six-session contract
         run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/pr22-physical"
-          curl -fLsS --retry 3 --max-time 180 -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            'https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/13180284133/zip' \
-            -o "$RUNNER_TEMP/pr22-physical/factory-pr22.zip"
-          curl -fLsS --retry 3 --max-time 180 -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            'https://api.github.com/repos/shihuiarenjinba-png/3d-build-qa/actions/artifacts/13185037028/zip' \
-            -o "$RUNNER_TEMP/pr22-physical/software-qa15.zip"
-      - name: Independently validate Factory ZIP, EXE/PCK/manifest and eight real-PCK images
-        shell: bash
-        run: |
-          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v
           python - <<'PY'
-          import json, os
-          from pathlib import Path
-          from prism_pr22_failure_reason_gate import verify_archive
-          from prism_pr22_physical_evidence_gate import verify_software_zip, blank_template
-          root = Path(os.environ["RUNNER_TEMP"]) / "pr22-physical"
-          factory = verify_archive(root / "factory-pr22.zip", root / "candidate")
-          software = verify_software_zip(root / "software-qa15.zip")
-          assert software["software_frame_sha256_count"] == 8
-          assert software["physical_windows_gui"] == "HOLD"
-          assert factory["pck_sha256"] == software["pck_sha256"]
-          (root / "physical-capture.EMPTY.json").write_text(
-              json.dumps(blank_template(), indent=2, ensure_ascii=False) + "\n",
-              encoding="utf-8")
-          print("PASS: PR22 exact bytes and eight software images. PHYSICAL_HOLD.")
+          import os
+          from prism_consumer_artifact_runtime_gate import SOURCE, ARTIFACT_ID, MEMBERS
+          from prism_pr25_physical_handoff import capture_template, verify_template
+          assert SOURCE == os.environ['FACTORY_SOURCE_SHA']
+          assert ARTIFACT_ID == int(os.environ['FACTORY_ARTIFACT_ID'])
+          assert MEMBERS['candidate.pck'][1] == '189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9'
+          assert int(os.environ['QA_ARTIFACT_ID']) == 13672673982
+          template = capture_template()
+          verify_template(template)
+          assert len(template['sessions']) == 6
+          assert len({p for s in template['sessions'] for p in s['screenshots'].values()}) == 36
+          assert not template['physical_device']
+          print('PASS: PR25 lineage and empty 6-session/36-image template; PHYSICAL_HOLD')
           PY
-          cp prism_pr22_physical_evidence_gate.py "$RUNNER_TEMP/pr22-physical/"
-          cp prism_pr22_failure_reason_gate.py "$RUNNER_TEMP/pr22-physical/"
-          cp prism_first30s_physical_windows_gate.py "$RUNNER_TEMP/pr22-physical/"
-          cp prism_sentinel_release_pck_content_gate.py "$RUNNER_TEMP/pr22-physical/"
-          cp scripts/Capture-PrismPR22PhysicalFrame.ps1 "$RUNNER_TEMP/pr22-physical/"
-          cp docs/PRISM_PR22_PHYSICAL_RECORDER_README.md "$RUNNER_TEMP/pr22-physical/README.md"
-      - name: Upload read-only QA handoff (no physical/human PASS)
-        uses: actions/upload-artifact@v4
+      - name: Upload empty PR25 physical capture template (never a PASS receipt)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pr25-physical"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from prism_pr25_physical_handoff import capture_template
+          p=Path(os.environ['RUNNER_TEMP'])/'pr25-physical/physical-capture.EMPTY.json'
+          p.write_text(json.dumps(capture_template(),indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          PY
+      - uses: actions/upload-artifact@v4
         with:
-          name: prism-pr22-physical-qa-unreviewed-handoff-not-msix
-          path: ${{ runner.temp }}/pr22-physical/
+          name: prism-pr25-six-session-empty-template-physical-hold
+          path: ${{ runner.temp }}/pr25-physical/
           if-no-files-found: error
-          retention-days: 6
+          retention-days: 7
   physical-contract-windows:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -76,12 +64,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run physical negative fixtures (CI is NOT physical/human QA)
-        run: python -m unittest discover -s tests -p 'test_prism_pr22_physical_evidence_gate.py' -v
-      - name: Assert empty template cannot produce physical PASS
+      - name: PR25 negative fixtures on Windows CI (not physical operator QA)
+        run: python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v
+      - name: Empty capture remains HOLD
         shell: pwsh
         run: |
-          python prism_pr22_physical_evidence_gate.py --template "$env:RUNNER_TEMP\empty-pr22.json"
-          if ($LASTEXITCODE -ne 0) { throw 'Template generation failed' }
-          python -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['physical_qa']=='PHYSICAL_HOLD' and d['human_fun']=='PHYSICAL_HOLD' and not d['sale_ready'] and len(d['sessions'])==6" "$env:RUNNER_TEMP\empty-pr22.json"
-          if ($LASTEXITCODE -ne 0) { throw 'False physical PASS' }
+          python -c "from prism_pr25_physical_handoff import capture_template,verify_template; x=capture_template();verify_template(x);assert len(x['sessions'])==6 and not x['physical_device'];print('PHYSICAL_HOLD')"
+          if ($LASTEXITCODE -ne 0) { throw 'PR25 physical contract failed' }

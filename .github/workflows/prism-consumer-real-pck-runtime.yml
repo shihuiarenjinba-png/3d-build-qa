@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      FACTORY_ARTIFACT_ID: '13155398069'
-      FACTORY_SOURCE_SHA: '066d9f51d58cfecb994665d5c31adb1156c38942'
-      PRISM_EXPECTED_PCK_SHA: 'a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9'
+      FACTORY_ARTIFACT_ID: '13642354096'
+      FACTORY_SOURCE_SHA: '4c22875c5ed79d393516c6a7a95361b9e9ed1950'
+      PRISM_EXPECTED_PCK_SHA: '189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9'
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +40,9 @@ jobs:
           import datetime,json,os
           from pathlib import Path
           m=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/metadata.json').read_text())
-          assert (m['id'],m['name'],m['size_in_bytes'])==(13155398069,'godot-3d-factory-export-evidence',37794175)
-          assert m['digest']=='sha256:1a19000c225b5165a1280ec36b4dcf5eaec4287e39d50f86512b8e9f5ad4dd44'
-          assert m['workflow_run']['id']==41472458097 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
+          assert (m['id'],m['name'],m['size_in_bytes'])==(13642354096,'godot-3d-factory-export-evidence',37795943)
+          assert m['digest']=='sha256:ea0f218078783866c44f946060df3422493fe73d45aec54789eb91cabe644d44'
+          assert m['workflow_run']['id']==42545579783 and m['workflow_run']['head_sha']==os.environ['FACTORY_SOURCE_SHA']
           assert m['expired'] is False
           assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime.fromisoformat(m['expires_at'].replace('Z','+00:00'))
           print('PASS: live metadata pinned; actual ZIP bytes checked next')
@@ -116,11 +116,11 @@ jobs:
           assert 'bilingual_hint_single_line_1024' in x['godot_4_3_runtime_assertions']
           assert x['sale_ready'] is False and x['store_submission_allowed'] is False
           PY
-      - name: Bind all seven PR21 software frames and SHA to the exact QA receipt
+      - name: Bind all seven current PR25 software frames and SHA to exact QA receipt
         shell: bash
         run: |
           set -euo pipefail
-          python prism_pr21_software_baseline_gate.py \
+          python prism_pr25_software_baseline_gate.py \
             --receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
             --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
             --out "$RUNNER_TEMP/prism-real-pck/pr21-software-baseline.json"
@@ -129,7 +129,7 @@ jobs:
           from pathlib import Path
           p = Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pr21-software-baseline.json'
           x = json.loads(p.read_text())
-          assert x['status'] == 'PR21_SOFTWARE_BASELINE_BYTES_VERIFIED_NOT_PHYSICAL'
+          assert x['status'] == 'PR25_SOFTWARE_BASELINE_BYTES_VERIFIED_NOT_PHYSICAL'
           assert x['software_screenshot_sha256_count'] == 7
           assert x['physical_windows_gui'] == 'HOLD'
           assert x['human_real_time_90s'] == 'HOLD'
@@ -140,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_prism_pr21_timeout_retry_gate.py' -v
-          python prism_pr21_timeout_retry_gate.py \
+          python prism_pr25_timeout_retry_gate.py \
             --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
             --runtime "$RUNNER_TEMP/prism-real-pck/godot-runtime.json" \
             --baseline-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
@@ -151,30 +151,30 @@ jobs:
           from pathlib import Path
           root = Path(os.environ['RUNNER_TEMP']) / 'prism-real-pck'
           r = json.loads((root / 'pr21-timeout-retry-receipt.json').read_text())
-          assert r['status'] == 'PR21_EXACT_PCK_TIMEOUT_RETRY_TWO_STATES_VERIFIED_NOT_PHYSICAL'
+          assert r['status'] == 'PR25_EXACT_PCK_TIMEOUT_RETRY_TWO_STATES_VERIFIED_NOT_PHYSICAL'
           assert r['all_software_frame_sha256_count'] == 9
           assert set(r['new_software_frames_verified']) == {'timeout_ja', 'retry_ja'}
           assert r['physical_windows_gui'] == 'HOLD'
           assert r['human_real_time_90s'] == 'HOLD'
           assert r['sale_ready'] is False and r['store_submission_allowed'] is False
           PY
-      - name: PR21 read-only physical Windows EXE/PCK handoff (exact Factory ZIP CRC and SHA)
+      - name: PR25 read-only physical Windows EXE/PCK handoff (exact Factory ZIP CRC and SHA)
         shell: bash
         run: |
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_prism_pr21_physical_handoff.py' -v
-          python prism_pr21_physical_handoff.py \
+          python prism_pr25_physical_handoff.py \
             --build "$RUNNER_TEMP/prism-real-pck/physical-windows-handoff" \
             --archive "$RUNNER_TEMP/prism-real-pck/factory.zip" \
             --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
             --software-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
             --screenshots "$RUNNER_TEMP/prism-real-pck/screenshots"
-          python prism_pr21_physical_handoff.py \
+          python prism_pr25_physical_handoff.py \
             --verify "$RUNNER_TEMP/prism-real-pck/physical-windows-handoff"
-      - name: Upload exact PR21 EXE/PCK and offline physical QA template (not Store)
+      - name: Upload exact PR25 EXE/PCK and offline physical QA template (not Store)
         uses: actions/upload-artifact@v4
         with:
-          name: prism-pr21-exact-binary-physical-qa-handoff-not-store
+          name: prism-pr25-exact-binary-physical-qa-handoff-not-store
           path: ${{ runner.temp }}/prism-real-pck/physical-windows-handoff/
           if-no-files-found: error
           retention-days: 7

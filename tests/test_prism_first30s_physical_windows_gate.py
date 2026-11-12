@@ -38,7 +38,7 @@ class PhysicalGateTests(unittest.TestCase):
         sessions = []
         count = 0
         for lang in ("ja", "en"):
-            for dpi in (125, 150):
+            for dpi in (100, 125, 150):
                 frames = {}
                 for state in SCREENSHOTS:
                     name = f"{lang}-{dpi}-{state}.png"
@@ -87,7 +87,7 @@ class PhysicalGateTests(unittest.TestCase):
         self.assertFalse(result["physical_gui_automatically_proven"])
         self.assertFalse(result["sale_ready"])
         self.assertFalse(result["store_submission_allowed"])
-        self.assertEqual(result["physical_screenshot_sha256_count"], 24)
+        self.assertEqual(result["physical_screenshot_sha256_count"], 36)
 
     def test_expired_artifact_or_code_integrity_block_always_hold(self):
         for status in ("NOT_CHECKED", "BLOCKED_BY_CODE_INTEGRITY", "BYPASSED"):
@@ -99,9 +99,11 @@ class PhysicalGateTests(unittest.TestCase):
         item["factory_artifact_expires_at"] = "2026-11-10T15:32:35Z"
         with self.assertRaisesRegex(PhysicalGateHold, "expiry metadata mismatch"):
             self.check(item)
-        with self.assertRaisesRegex(PhysicalGateHold, "EXPIRED_FACTORY_ARTIFACT_HOLD"):
-            evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
-                     now=datetime(2026, 11, 10, tzinfo=timezone.utc))
+        with patch("prism_first30s_physical_windows_gate.digest",
+                   side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else PCK_SHA):
+            with self.assertRaisesRegex(PhysicalGateHold, "EXPIRED_FACTORY_ARTIFACT_HOLD"):
+                evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
+                         now=datetime(2026, 11, 16, tzinfo=timezone.utc))
 
     def test_non_windows_always_hold(self):
         with self.assertRaisesRegex(PhysicalGateHold, "DEFERRED_LOCAL_GATE"):
@@ -171,7 +173,7 @@ class PhysicalGateTests(unittest.TestCase):
 
     def test_dpi_and_frame_reuse_fail_closed(self):
         item = copy.deepcopy(self.capture)
-        item["sessions"][0]["dpi_percent"] = 100
+        item["sessions"][0]["dpi_percent"] = 175
         with self.assertRaises(PhysicalGateHold):
             self.check(item)
         item = copy.deepcopy(self.capture)
@@ -181,7 +183,7 @@ class PhysicalGateTests(unittest.TestCase):
 
     def test_wrong_language_dpi_filename_rejected(self):
         item = copy.deepcopy(self.capture)
-        item["sessions"][0]["screenshots"]["guide"] = "en-125-guide.png"
+        item["sessions"][0]["screenshots"]["guide"] = "en-175-guide.png"
         with self.assertRaisesRegex(PhysicalGateHold, "unsafe screenshot name"):
             self.check(item)
 
