@@ -54,7 +54,7 @@ def load(path):
 def capture_template():
     sessions = []
     for lang in ("ja", "en"):
-        for dpi in (125, 150):
+        for dpi in (100, 125, 150):
             session = {
                 "language": lang, "dpi_percent": dpi, "resolution": [1024, 768],
                 "capture_started_at": None, "capture_finished_at": None,
@@ -89,9 +89,9 @@ def verify_template(value):
     need(isinstance(value, dict), "capture template missing")
     expected = capture_template()
     need(value == expected, "capture template modified, incomplete, or falsely attested")
-    need(len(value["sessions"]) == 4, "four uncoached sessions required")
-    need(len({x for s in value["sessions"] for x in s["screenshots"].values()}) == 24,
-         "24 unique physical screenshot filenames required")
+    need(len(value["sessions"]) == 6, "six uncoached sessions required")
+    need(len({x for s in value["sessions"] for x in s["screenshots"].values()}) == 36,
+         "36 unique physical screenshot filenames required")
 
 
 def check_handoff(root):
@@ -188,7 +188,7 @@ normal Windows policy allows candidate.exe. A block means DEFERRED_LOCAL_GATE.
    request, seven independent Godot screenshots and the hold-only template.
 3. Run .\\launch-verified.ps1 ONLY if normal Windows security allows the EXE.
    It rechecks hashes and starts candidate.exe with candidate.pck alongside.
-4. For JA/125%, JA/150%, EN/125%, EN/150%, set Windows display 1024x768
+4. For JA/100%, JA/125%, JA/150%, EN/100%, EN/125%, EN/150%, set Windows display 1024x768
    and corresponding scaling. Each is a fresh uncoached first-launch session.
    Record 30-second goal comprehension, Start-before-clock, tower 1->2->3,
    yellow warning/red scan, time/warp traps, outcome, retry, real 90 seconds.
@@ -199,7 +199,7 @@ normal Windows policy allows candidate.exe. A block means DEFERRED_LOCAL_GATE.
    Do not manufacture answers, manipulate time or replace missing screenshots.
 5. Copy physical-capture-TEMPLATE.json to physical-capture.json; fill real
    observations and paths. Save 6 DISTINCT 1024x768 PNGs per session in
-   physical-frames/ using the exact 24 names in the template.
+   physical-frames/ using the exact 36 names in the template.
 6. Run on the SAME physical Windows computer:
    py -3 .\\prism_first30s_physical_windows_gate.py --software-receipt .\\qa11\\pck-runtime-independent-receipt.json --software-screenshot-dir .\\qa11\\screenshots --capture .\\physical-capture.json --screenshot-dir .\\physical-frames --out .\\physical-review-receipt.json
    Missing evidence fails closed. Even a passing receipt is REVIEW_REQUIRED,
