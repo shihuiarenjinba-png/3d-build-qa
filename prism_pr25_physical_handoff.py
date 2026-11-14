@@ -75,7 +75,7 @@ def capture_template():
         "schema_version": 1, "capture_kind": "PHYSICAL_WINDOWS_OPERATOR_ATTESTATION",
         "source_sha": SOURCE, "request_id": REQUEST,
         "factory_artifact_id": ARTIFACT_ID,
-        "factory_artifact_expires_at": "2026-11-15T00:00:00Z",
+        "factory_artifact_expires_at": "2026-11-16T01:27:00Z",
         "code_integrity_status": "NOT_CHECKED",
         "exe_sha256": MEMBERS["candidate.exe"][1],
         "pck_sha256": MEMBERS["candidate.pck"][1],
