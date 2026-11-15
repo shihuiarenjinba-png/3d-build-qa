@@ -89,7 +89,7 @@ class PhysicalGateTests(unittest.TestCase):
         self.assertFalse(result["store_submission_allowed"])
         self.assertEqual(result["physical_screenshot_sha256_count"], 36)
 
-    def test_expired_artifact_or_code_integrity_block_always_hold(self):
+    def test_preserved_artifact_after_retention_and_code_integrity_block(self):
         for status in ("NOT_CHECKED", "BLOCKED_BY_CODE_INTEGRITY", "BYPASSED"):
             item = copy.deepcopy(self.capture)
             item["code_integrity_status"] = status
@@ -101,9 +101,11 @@ class PhysicalGateTests(unittest.TestCase):
             self.check(item)
         with patch("prism_first30s_physical_windows_gate.digest",
                    side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else PCK_SHA):
-            with self.assertRaisesRegex(PhysicalGateHold, "EXPIRED_FACTORY_ARTIFACT_HOLD"):
-                evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
-                         now=datetime(2026, 11, 16, tzinfo=timezone.utc))
+            # GitHub retention expiry must not invalidate preserved exact bytes.
+            receipt = evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
+                               now=datetime(2026, 11, 17, tzinfo=timezone.utc))
+            self.assertEqual(receipt["status"], "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
+            self.assertFalse(receipt["sale_ready"])
 
     def test_non_windows_always_hold(self):
         with self.assertRaisesRegex(PhysicalGateHold, "DEFERRED_LOCAL_GATE"):
