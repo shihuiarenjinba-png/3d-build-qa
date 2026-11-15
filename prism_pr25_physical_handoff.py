@@ -75,7 +75,7 @@ def capture_template():
         "schema_version": 1, "capture_kind": "PHYSICAL_WINDOWS_OPERATOR_ATTESTATION",
         "source_sha": SOURCE, "request_id": REQUEST,
         "factory_artifact_id": ARTIFACT_ID,
-        "factory_artifact_expires_at": "2026-11-16T01:27:00Z",
+        "factory_artifact_expires_at": "2026-11-16T01:27:14Z",
         "code_integrity_status": "NOT_CHECKED",
         "exe_sha256": MEMBERS["candidate.exe"][1],
         "pck_sha256": MEMBERS["candidate.pck"][1],
@@ -195,14 +195,14 @@ normal Windows policy allows candidate.exe. A block means DEFERRED_LOCAL_GATE.
    Record Windows build, actual tester and timezone-aware wall-clock timestamps.
    Set code_integrity_status to ALLOWED_BY_EXISTING_POLICY only after actual
    successful launch. If blocked, leave NOT_CHECKED or record BLOCKED_BY_CODE_INTEGRITY;
-   never bypass Windows security. Expired original Factory artifact is HOLD.
+   never bypass Windows security. Missing or hash-mismatched Factory bytes are HOLD.
    Do not manufacture answers, manipulate time or replace missing screenshots.
 5. Copy physical-capture-TEMPLATE.json to physical-capture.json; fill real
    observations and paths. Save 6 DISTINCT 1024x768 PNGs per session in
    physical-frames/ using the exact 36 names in the template.
 6. Run on the SAME physical Windows computer:
    py -3 .\\prism_first30s_physical_windows_gate.py --software-receipt .\\qa11\\pck-runtime-independent-receipt.json --software-screenshot-dir .\\qa11\\screenshots --capture .\\physical-capture.json --screenshot-dir .\\physical-frames --out .\\physical-review-receipt.json
-   Missing evidence fails closed. Even a passing receipt is REVIEW_REQUIRED,
+   GitHub retention expiry alone does not invalidate preserved SHA-verified bytes.\n   Missing evidence fails closed. Even a passing receipt is REVIEW_REQUIRED,
    never human fun PASS, SALE_READY or Store submission.
 
 The 7 included PNGs are CLOUD SOFTWARE RENDER ONLY, not physical Windows.
