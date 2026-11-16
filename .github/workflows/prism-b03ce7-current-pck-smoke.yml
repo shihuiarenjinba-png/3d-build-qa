@@ -1,0 +1,59 @@
+name: Prism b03ce7 current PCK smoke (not physical QA)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  current-pck-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact current Factory export
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14193681992/zip > "$RUNNER_TEMP/current.zip"
+          test -s "$RUNNER_TEMP/current.zip"
+      - name: Verify all current export bytes, reject old artifacts
+        env:
+          PRISM_B03_CANONICAL_ZIP: ${{ runner.temp }}/current.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_b03ce7_current_custody.py' -v 2>&1 | tee "$RUNNER_TEMP/custody.log"
+          grep -q 'Ran 3 tests' "$RUNNER_TEMP/custody.log"
+          grep -q '^OK$' "$RUNNER_TEMP/custody.log"
+          if grep -E 'skipped=|SKIP' "$RUNNER_TEMP/custody.log"; then exit 1; fi
+          mkdir -p "$RUNNER_TEMP/current"
+          unzip -q "$RUNNER_TEMP/current.zip" -d "$RUNNER_TEMP/current"
+      - name: Install official Godot 4.3 runtime
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64"
+      - name: Execute current compiled PCK in headless Godot (smoke only)
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/current"
+          timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --headless --main-pack candidate.pck --quit-after 120 2>&1 | tee "$RUNNER_TEMP/current-pck.log"
+          if grep -Ei 'SCRIPT ERROR:|ERROR:.*(failed|invalid|missing|parse)' "$RUNNER_TEMP/current-pck.log"; then exit 1; fi
+          echo 'CURRENT_PCK_HEADLESS_SMOKE_PASS_NOT_PHYSICAL'
+      - name: Preserve software-only logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-b03ce7-headless-smoke-logs-not-physical
+          path: |
+            ${{ runner.temp }}/custody.log
+            ${{ runner.temp }}/current-pck.log
+          if-no-files-found: warn
+          retention-days: 7
