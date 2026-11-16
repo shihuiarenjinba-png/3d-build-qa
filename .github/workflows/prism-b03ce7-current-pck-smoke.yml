@@ -40,12 +40,16 @@ jobs:
           curl -fLsS --retry 3 --max-time 180 https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -o "$RUNNER_TEMP/godot.zip"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP"
           chmod +x "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64"
-      - name: Execute current compiled PCK in headless Godot (smoke only)
+      - name: Execute current compiled PCK in headless Godot (strict smoke only)
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/current"
           timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --headless --main-pack candidate.pck --quit-after 120 2>&1 | tee "$RUNNER_TEMP/current-pck.log"
-          if grep -Ei 'SCRIPT ERROR:|ERROR:.*(failed|invalid|missing|parse)' "$RUNNER_TEMP/current-pck.log"; then exit 1; fi
+          # Any Godot ERROR must fail. Previous regex missed "ERROR: Parameter \"m\" is null."
+          if grep -Eiq '(^|[[:space:]])(SCRIPT ERROR|ERROR):' "$RUNNER_TEMP/current-pck.log"; then
+            echo 'CURRENT_PCK_HEADLESS_SMOKE_FAIL_GODOT_ERRORS'
+            exit 1
+          fi
           echo 'CURRENT_PCK_HEADLESS_SMOKE_PASS_NOT_PHYSICAL'
       - name: Preserve software-only logs
         if: always()
