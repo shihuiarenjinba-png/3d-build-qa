@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/current"
-          xvfb-run -a -s '-screen 0 1440x900x24' timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --display-driver x11 --rendering-driver opengl3 --rendering-method gl_compatibility --main-pack candidate.pck --quit-after 120 2>&1 | tee "$RUNNER_TEMP/mesa-pck.log"
+          xvfb-run -a -s '-screen 0 1440x900x24' timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --audio-driver Dummy --display-driver x11 --rendering-driver opengl3 --rendering-method gl_compatibility --main-pack candidate.pck --quit-after 120 2>&1 | tee "$RUNNER_TEMP/mesa-pck.log"
           if grep -Eiq '(^|[[:space:]])(SCRIPT ERROR|ERROR):' "$RUNNER_TEMP/mesa-pck.log"; then
             echo 'MESA_RENDERED_PCK_FAIL_GODOT_ERRORS'
             exit 1
