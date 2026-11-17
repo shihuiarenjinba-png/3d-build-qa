@@ -51,6 +51,21 @@ jobs:
             exit 1
           fi
           echo 'CURRENT_PCK_HEADLESS_SMOKE_PASS_NOT_PHYSICAL'
+      - name: Diagnose dummy renderer failure with headless OpenGL compatibility
+        if: failure()
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_GL_VERSION_OVERRIDE: "3.3"
+        run: |
+          # Diagnostic only: never changes the strict headless smoke gate to PASS.
+          set -uo pipefail
+          cd "$RUNNER_TEMP/current"
+          timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --headless --rendering-driver opengl3 --rendering-method gl_compatibility --main-pack candidate.pck --quit-after 120 > "$RUNNER_TEMP/headless-opengl3.log" 2>&1
+          result=$?
+          echo "HEADLESS_OPENGL3_EXIT_CODE=$result"
+          echo "HEADLESS_OPENGL3_GODOT_ERROR_LINES=$(grep -Eic '(^|[[:space:]])(SCRIPT ERROR|ERROR):' "$RUNNER_TEMP/headless-opengl3.log" || true)"
+          grep -E 'ERROR:|SCRIPT ERROR:|Renderer|rendering' "$RUNNER_TEMP/headless-opengl3.log" | head -60 || true
+          echo 'DIAGNOSTIC_ONLY_STRICT_HEADLESS_GATE_UNCHANGED'
       - name: Preserve software-only logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,5 +74,6 @@ jobs:
           path: |
             ${{ runner.temp }}/custody.log
             ${{ runner.temp }}/current-pck.log
+            ${{ runner.temp }}/headless-opengl3.log
           if-no-files-found: warn
           retention-days: 7
