@@ -11,16 +11,15 @@ from pathlib import Path
 
 from prism_first30s_physical_windows_gate import check_png
 
-SOURCE = "4c22875c5ed79d393516c6a7a95361b9e9ed1950"
-REQUEST = "3d-prism-route-3d-4c22875c5ed7"
-FACTORY_RUN_ID = 42545579783
-FACTORY_ARTIFACT_ID = 13642354096
-QA_RUN_ID = 41472861586
-QA_ARTIFACT_ID = 13156640316
-ZIP_SHA = "ea0f218078783866c44f946060df3422493fe73d45aec54789eb91cabe644d44"
-EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
-PCK_SHA = "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9"
-MANIFEST_SHA = "131256dac2eaa837cd5a447914dbe10c34b2f91db376adbc42f2659c75e019a7"
+# The PR25 consumer gate is the authoritative exact-byte provenance source.
+# Keep the historical PR21 baseline module unchanged as a negative fixture.
+from prism_consumer_artifact_runtime_gate import (
+    SOURCE, REQUEST, RUN_ID as FACTORY_RUN_ID,
+    ARTIFACT_ID as FACTORY_ARTIFACT_ID, ZIP_SHA, MEMBERS,
+)
+EXE_SHA = MEMBERS["candidate.exe"][1]
+PCK_SHA = MEMBERS["candidate.pck"][1]
+MANIFEST_SHA = MEMBERS["export-evidence.json"][1]
 FRAMES = ("guide_en", "guide_ja", "initial", "scan", "trap", "win", "ja")
 ASSERTIONS = {"bilingual_start_guide", "bilingual_hint_single_line_1024",
               "clock_frozen_until_start", "tower_order_1_2_3", "next_tower_hud",
