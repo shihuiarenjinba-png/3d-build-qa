@@ -6,9 +6,8 @@ permissions:
   contents: read
   actions: read
 env:
-  FACTORY_ARTIFACT_ID: '13642354096'
-  QA_ARTIFACT_ID: '13672673982'
-  FACTORY_SOURCE_SHA: '4c22875c5ed79d393516c6a7a95361b9e9ed1950'
+  FACTORY_ARTIFACT_ID: '14193681992'
+  FACTORY_SOURCE_SHA: 'b03ce7b16c3f75c04fe20fdda224c45849eeba0d'
 jobs:
   physical-contract-linux:
     runs-on: ubuntu-latest
@@ -29,8 +28,7 @@ jobs:
           from prism_pr25_physical_handoff import capture_template, verify_template
           assert SOURCE == os.environ['FACTORY_SOURCE_SHA']
           assert ARTIFACT_ID == int(os.environ['FACTORY_ARTIFACT_ID'])
-          assert MEMBERS['candidate.pck'][1] == '189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9'
-          assert int(os.environ['QA_ARTIFACT_ID']) == 13672673982
+          assert MEMBERS['candidate.pck'][1] == '00b6f99d36d81a1cd1e024def5fc502d90c8e2234ea95d3961e342ce66687cae'
           template = capture_template()
           verify_template(template)
           assert len(template['sessions']) == 6
