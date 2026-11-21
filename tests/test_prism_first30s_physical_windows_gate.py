@@ -107,6 +107,29 @@ class PhysicalGateTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
             self.assertFalse(receipt["sale_ready"])
 
+    def test_handoff_and_gate_share_exact_current_pr25_provenance(self):
+        from prism_pr25_physical_handoff import capture_template
+        from prism_consumer_artifact_runtime_gate import (
+            SOURCE as canonical_source, REQUEST as canonical_request,
+            ARTIFACT_ID as canonical_artifact, MEMBERS,
+        )
+        template = capture_template()
+        self.assertEqual(template["source_sha"], SOURCE)
+        self.assertEqual(template["request_id"], REQUEST)
+        self.assertEqual(template["factory_artifact_id"], ARTIFACT_ID)
+        self.assertEqual(template["factory_artifact_expires_at"], FACTORY_ARTIFACT_EXPIRES_AT)
+        self.assertIsNone(FACTORY_ARTIFACT_EXPIRES_AT)
+        self.assertEqual((SOURCE, REQUEST, ARTIFACT_ID),
+                         (canonical_source, canonical_request, canonical_artifact))
+        self.assertEqual(EXE_SHA, MEMBERS["candidate.exe"][1])
+        self.assertEqual(PCK_SHA, MEMBERS["candidate.pck"][1])
+        self.assertEqual(template["exe_sha256"], EXE_SHA)
+        self.assertEqual(template["pck_sha256"], PCK_SHA)
+        self.assertEqual(len(template["sessions"]), 6)
+        self.assertNotEqual(PCK_SHA, "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9")
+        self.assertEqual(self.check(copy.deepcopy(self.capture))["status"],
+                         "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
+
     def test_non_windows_always_hold(self):
         with self.assertRaisesRegex(PhysicalGateHold, "DEFERRED_LOCAL_GATE"):
             self.check(copy.deepcopy(self.capture), host=False)
