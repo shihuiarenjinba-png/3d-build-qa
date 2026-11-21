@@ -14,12 +14,13 @@ import platform
 import struct
 import zlib
 
-SOURCE = "4c22875c5ed79d393516c6a7a95361b9e9ed1950"
-REQUEST = "3d-prism-route-3d-4c22875c5ed7"
-ARTIFACT_ID = 13642354096
-FACTORY_ARTIFACT_EXPIRES_AT = "2026-11-16T01:27:14Z"
-EXE_SHA = "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"
-PCK_SHA = "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9"
+# Single immutable PR25 provenance shared with the binary handoff.
+from prism_consumer_artifact_runtime_gate import SOURCE, REQUEST, ARTIFACT_ID, MEMBERS
+
+# Expiry is unavailable in the handoff; never fabricate it.
+FACTORY_ARTIFACT_EXPIRES_AT = None
+EXE_SHA = MEMBERS["candidate.exe"][1]
+PCK_SHA = MEMBERS["candidate.pck"][1]
 SCREENSHOTS = ("guide", "active", "scan_warning", "trap", "outcome", "retry")
 OBSERVATIONS = (
     "goal_understood_in_30s", "tower_order_1_2_3_understood",
@@ -101,7 +102,7 @@ def evaluate(capture: dict, screenshot_dir: Path, *, windows_host: bool,
             "PROVENANCE_HOLD: Factory artifact expiry metadata mismatch")
     # GitHub artifact retention expiry does not invalidate a previously preserved,
     # SHA-verified EXE/PCK. Exact source/request and on-disk hashes are checked below.
-    # Keep expiry metadata immutable to reject forged lineage.
+    # Null expiry is required; actual custody is enforced by exact on-disk SHA.
     require(capture.get("code_integrity_status") == "ALLOWED_BY_EXISTING_POLICY",
             "CODE_INTEGRITY_HOLD: successful policy-compliant EXE launch not attested")
     require(capture.get("physical_device") is True and
