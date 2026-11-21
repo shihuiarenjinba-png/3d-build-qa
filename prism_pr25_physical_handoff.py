@@ -171,7 +171,8 @@ def build(archive, preflight_path, runtime_receipt, screenshot_dir, destination)
     (destination / "handoff-receipt.json").write_text(
         json.dumps(handoff, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (destination / "README-PHYSICAL-QA.txt").write_text(INSTRUCTIONS, encoding="utf-8")
-    (destination / "launch-verified.ps1").write_text(\n        LAUNCHER.replace('{pck_sha}', MEMBERS['candidate.pck'][1]), encoding="utf-8")
+    (destination / "launch-verified.ps1").write_text(
+        LAUNCHER.replace('{pck_sha}', MEMBERS['candidate.pck'][1]), encoding="utf-8")
     return check_handoff(destination)
 
 
