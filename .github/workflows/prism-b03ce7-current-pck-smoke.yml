@@ -1,0 +1,84 @@
+name: Prism b03ce7 current PCK rendered smoke (not physical QA)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  current-pck-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      MESA_GL_VERSION_OVERRIDE: "3.3"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact current Factory export
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14193681992/zip > "$RUNNER_TEMP/current.zip"
+          test -s "$RUNNER_TEMP/current.zip"
+      - name: Verify all current export bytes, reject old artifacts
+        env:
+          PRISM_B03_CANONICAL_ZIP: ${{ runner.temp }}/current.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_b03ce7_current_custody.py' -v 2>&1 | tee "$RUNNER_TEMP/custody.log"
+          grep -q 'Ran 3 tests' "$RUNNER_TEMP/custody.log"
+          grep -q '^OK$' "$RUNNER_TEMP/custody.log"
+          if grep -E 'skipped=|SKIP' "$RUNNER_TEMP/custody.log"; then exit 1; fi
+          mkdir -p "$RUNNER_TEMP/current"
+          unzip -q "$RUNNER_TEMP/current.zip" -d "$RUNNER_TEMP/current"
+      - name: Install Xvfb and Mesa for actual software rendering
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2
+      - name: Install official Godot 4.3 runtime
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64"
+      # Strict functional smoke uses a real Mesa/Xvfb rendering context. The Godot
+      # --headless dummy renderer produces null mesh errors even when this exact PCK
+      # succeeds under software rendering; that limitation remains visible below.
+      - name: Execute current compiled PCK with strict Mesa/Xvfb rendering
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/current"
+          xvfb-run -a -s '-screen 0 1440x900x24' timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --audio-driver Dummy --display-driver x11 --rendering-driver opengl3 --rendering-method gl_compatibility --main-pack candidate.pck --quit-after 120 2>&1 | tee "$RUNNER_TEMP/current-pck.log"
+          if grep -Eiq '(^|[[:space:]])(SCRIPT ERROR|ERROR):' "$RUNNER_TEMP/current-pck.log"; then
+            echo 'CURRENT_PCK_RENDERED_SMOKE_FAIL_GODOT_ERRORS'
+            exit 1
+          fi
+          echo 'CURRENT_PCK_RENDERED_SMOKE_PASS_NOT_PHYSICAL'
+      - name: Preserve known headless dummy-renderer limitation as diagnostic
+        if: always()
+        run: |
+          set -uo pipefail
+          cd "$RUNNER_TEMP/current"
+          timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --headless --main-pack candidate.pck --quit-after 120 > "$RUNNER_TEMP/headless-opengl3.log" 2>&1
+          result=$?
+          echo "HEADLESS_DUMMY_EXIT_CODE=$result"
+          echo "HEADLESS_DUMMY_GODOT_ERROR_LINES=$(grep -Eic '(^|[[:space:]])(SCRIPT ERROR|ERROR):' "$RUNNER_TEMP/headless-opengl3.log" || true)"
+          echo 'DIAGNOSTIC_ONLY_NOT_A_RENDERED_OR_PHYSICAL_QA_PASS'
+      - name: Preserve software-only logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-b03ce7-headless-smoke-logs-not-physical
+          path: |
+            ${{ runner.temp }}/custody.log
+            ${{ runner.temp }}/current-pck.log
+            ${{ runner.temp }}/headless-opengl3.log
+          if-no-files-found: warn
+          retention-days: 7

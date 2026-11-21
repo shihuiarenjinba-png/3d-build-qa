@@ -1,6 +1,7 @@
 name: Prism PR22 exact PCK bilingual failure QA (software only)
+# Historical PR22/PR23 byte lineage: manual forensic replay only.
+# Do not gate current PR25 on expired historical artifacts.
 on:
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read

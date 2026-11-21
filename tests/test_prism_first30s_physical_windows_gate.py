@@ -38,7 +38,7 @@ class PhysicalGateTests(unittest.TestCase):
         sessions = []
         count = 0
         for lang in ("ja", "en"):
-            for dpi in (125, 150):
+            for dpi in (100, 125, 150):
                 frames = {}
                 for state in SCREENSHOTS:
                     name = f"{lang}-{dpi}-{state}.png"
@@ -87,9 +87,9 @@ class PhysicalGateTests(unittest.TestCase):
         self.assertFalse(result["physical_gui_automatically_proven"])
         self.assertFalse(result["sale_ready"])
         self.assertFalse(result["store_submission_allowed"])
-        self.assertEqual(result["physical_screenshot_sha256_count"], 24)
+        self.assertEqual(result["physical_screenshot_sha256_count"], 36)
 
-    def test_expired_artifact_or_code_integrity_block_always_hold(self):
+    def test_preserved_artifact_after_retention_and_code_integrity_block(self):
         for status in ("NOT_CHECKED", "BLOCKED_BY_CODE_INTEGRITY", "BYPASSED"):
             item = copy.deepcopy(self.capture)
             item["code_integrity_status"] = status
@@ -99,9 +99,36 @@ class PhysicalGateTests(unittest.TestCase):
         item["factory_artifact_expires_at"] = "2026-11-10T15:32:35Z"
         with self.assertRaisesRegex(PhysicalGateHold, "expiry metadata mismatch"):
             self.check(item)
-        with self.assertRaisesRegex(PhysicalGateHold, "EXPIRED_FACTORY_ARTIFACT_HOLD"):
-            evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
-                     now=datetime(2026, 11, 10, tzinfo=timezone.utc))
+        with patch("prism_first30s_physical_windows_gate.digest",
+                   side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else PCK_SHA):
+            # GitHub retention expiry must not invalidate preserved exact bytes.
+            receipt = evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
+                               now=datetime(2026, 11, 17, tzinfo=timezone.utc))
+            self.assertEqual(receipt["status"], "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
+            self.assertFalse(receipt["sale_ready"])
+
+    def test_handoff_and_gate_share_exact_current_pr25_provenance(self):
+        from prism_pr25_physical_handoff import capture_template
+        from prism_consumer_artifact_runtime_gate import (
+            SOURCE as canonical_source, REQUEST as canonical_request,
+            ARTIFACT_ID as canonical_artifact, MEMBERS,
+        )
+        template = capture_template()
+        self.assertEqual(template["source_sha"], SOURCE)
+        self.assertEqual(template["request_id"], REQUEST)
+        self.assertEqual(template["factory_artifact_id"], ARTIFACT_ID)
+        self.assertEqual(template["factory_artifact_expires_at"], FACTORY_ARTIFACT_EXPIRES_AT)
+        self.assertIsNone(FACTORY_ARTIFACT_EXPIRES_AT)
+        self.assertEqual((SOURCE, REQUEST, ARTIFACT_ID),
+                         (canonical_source, canonical_request, canonical_artifact))
+        self.assertEqual(EXE_SHA, MEMBERS["candidate.exe"][1])
+        self.assertEqual(PCK_SHA, MEMBERS["candidate.pck"][1])
+        self.assertEqual(template["exe_sha256"], EXE_SHA)
+        self.assertEqual(template["pck_sha256"], PCK_SHA)
+        self.assertEqual(len(template["sessions"]), 6)
+        self.assertNotEqual(PCK_SHA, "189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9")
+        self.assertEqual(self.check(copy.deepcopy(self.capture))["status"],
+                         "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
 
     def test_non_windows_always_hold(self):
         with self.assertRaisesRegex(PhysicalGateHold, "DEFERRED_LOCAL_GATE"):
@@ -171,7 +198,7 @@ class PhysicalGateTests(unittest.TestCase):
 
     def test_dpi_and_frame_reuse_fail_closed(self):
         item = copy.deepcopy(self.capture)
-        item["sessions"][0]["dpi_percent"] = 100
+        item["sessions"][0]["dpi_percent"] = 175
         with self.assertRaises(PhysicalGateHold):
             self.check(item)
         item = copy.deepcopy(self.capture)
@@ -181,7 +208,7 @@ class PhysicalGateTests(unittest.TestCase):
 
     def test_wrong_language_dpi_filename_rejected(self):
         item = copy.deepcopy(self.capture)
-        item["sessions"][0]["screenshots"]["guide"] = "en-125-guide.png"
+        item["sessions"][0]["screenshots"]["guide"] = "en-175-guide.png"
         with self.assertRaisesRegex(PhysicalGateHold, "unsafe screenshot name"):
             self.check(item)
 

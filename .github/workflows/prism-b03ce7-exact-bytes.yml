@@ -1,0 +1,34 @@
+name: Prism b03ce7 exact exported bytes (fail closed)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  canonical-bytes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download canonical Factory artifact (not QA or historical artifacts)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" \
+            /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14193681992/zip \
+            > "$RUNNER_TEMP/prism-b03-canonical.zip"
+          test -s "$RUNNER_TEMP/prism-b03-canonical.zip"
+      - name: Verify ZIP and every EXE PCK manifest byte against b03ce7 source
+        env:
+          PRISM_B03_CANONICAL_ZIP: ${{ runner.temp }}/prism-b03-canonical.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_b03ce7_current_custody.py' -v
+          echo 'EXACT_BYTES_VERIFIED only if unittest completes without skips; physical QA remains HOLD'
