@@ -171,7 +171,7 @@ def build(archive, preflight_path, runtime_receipt, screenshot_dir, destination)
     (destination / "handoff-receipt.json").write_text(
         json.dumps(handoff, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (destination / "README-PHYSICAL-QA.txt").write_text(INSTRUCTIONS, encoding="utf-8")
-    (destination / "launch-verified.ps1").write_text(LAUNCHER, encoding="utf-8")
+    (destination / "launch-verified.ps1").write_text(\n        LAUNCHER.replace('{pck_sha}', MEMBERS['candidate.pck'][1]), encoding="utf-8")
     return check_handoff(destination)
 
 
@@ -218,7 +218,7 @@ if ($LASTEXITCODE -ne 0) { throw 'HOLD: immutable binary handoff failed verifica
 $exe = (Resolve-Path .\\candidate.exe).Path
 $pck = (Resolve-Path .\\candidate.pck).Path
 if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13') { throw 'EXE SHA mismatch' }
-if ((Get-FileHash $pck -Algorithm SHA256).Hash.ToLowerInvariant() -ne '189c020a545e269ac639f9982e41c45dbc180a069ed9b51000927951448b19c9') { throw 'PCK SHA mismatch' }
+if ((Get-FileHash $pck -Algorithm SHA256).Hash.ToLowerInvariant() -ne '{pck_sha}') { throw 'PCK SHA mismatch' }
 Write-Host 'Exact PR25 bytes verified; starting only under existing Windows security policy.'
 Start-Process -FilePath $exe -WorkingDirectory $PSScriptRoot -Wait
 """
