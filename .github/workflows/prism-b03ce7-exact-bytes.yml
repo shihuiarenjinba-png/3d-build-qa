@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           gh api -H "Accept: application/vnd.github+json" \
-            /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14193681992/zip \
+            /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14797309778/zip \
             > "$RUNNER_TEMP/prism-b03-canonical.zip"
           test -s "$RUNNER_TEMP/prism-b03-canonical.zip"
       - name: Verify ZIP and every EXE PCK manifest byte against b03ce7 source

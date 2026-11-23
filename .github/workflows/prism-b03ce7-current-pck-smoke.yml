@@ -24,7 +24,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api -H "Accept: application/vnd.github+json" /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14193681992/zip > "$RUNNER_TEMP/current.zip"
+          gh api -H "Accept: application/vnd.github+json" /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14797309778/zip > "$RUNNER_TEMP/current.zip"
           test -s "$RUNNER_TEMP/current.zip"
       - name: Verify all current export bytes, reject old artifacts
         env:

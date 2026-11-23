@@ -9,14 +9,14 @@ import zipfile
 
 SOURCE = "b03ce7b16c3f75c04fe20fdda224c45849eeba0d"
 REQUEST = "3d-prism-route-3d-b03ce7b16c3f"
-ARTIFACT_ID = 14193681992
+ARTIFACT_ID = 14797309778
 RUN_ID = 43794658086
-ZIP_SHA = "66a755566065c4d16f186b001865777ad757503fc3fa1f3e2abddc8d2f5c3e84"
-ZIP_SIZE = 37795974
+ZIP_SHA = "e2573b9ab11afde6ab6ec7417c23438581620a08bb9dcff76d792a2b5592ccac"
+ZIP_SIZE = 37795977
 MEMBERS = {
     "candidate.exe": (84214784, "66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13"),
-    "candidate.pck": (6987584, "00b6f99d36d81a1cd1e024def5fc502d90c8e2234ea95d3961e342ce66687cae"),
-    "export-evidence.json": (680, "63f6804a46fdf18024ddae2c715706a6506348af66e6d4846292ca02cbe0608d"),
+    "candidate.pck": (6987584, "b7abc0f9caf2e505a1dcaf834b4cb897d8f00df4060c31708914e8bb4f3d5666"),
+    "export-evidence.json": (680, "442d2c9070e017adf1c0ceaa96ba607f470c0f147176671f8a844122aca4d5bd"),
 }
 CONDITIONS = tuple((lang, dpi) for lang in ("ja", "en") for dpi in (100, 125, 150))
 FRAMES = ("guide", "active", "scan", "trap", "outcome", "retry")

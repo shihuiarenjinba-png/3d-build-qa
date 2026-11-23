@@ -3,7 +3,7 @@ extends SceneTree
 # This is Mesa/Xvfb software rendering, NOT physical Windows GUI evidence.
 const SOURCE = "b03ce7b16c3f75c04fe20fdda224c45849eeba0d"
 const REQUEST = "3d-prism-route-3d-b03ce7b16c3f"
-const PCK_SHA = "00b6f99d36d81a1cd1e024def5fc502d90c8e2234ea95d3961e342ce66687cae"
+const PCK_SHA = "b7abc0f9caf2e505a1dcaf834b4cb897d8f00df4060c31708914e8bb4f3d5666"
 
 func check(ok: bool, why: String) -> void:
     if not ok:
