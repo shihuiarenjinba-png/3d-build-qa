@@ -110,9 +110,8 @@ class PhysicalGateTests(unittest.TestCase):
         archive_path = Path(archive)
         self.assertTrue(archive_path.is_file(), "canonical Factory ZIP is missing")
 
-        from prism_consumer_artifact_runtime_gate import ZIP_SHA, ZIP_SIZE, MEMBERS
+        from prism_consumer_artifact_runtime_gate import ZIP_SHA, MEMBERS
         archive_bytes = archive_path.read_bytes()
-        self.assertEqual(len(archive_bytes), ZIP_SIZE)
         self.assertEqual(hashlib.sha256(archive_bytes).hexdigest(), ZIP_SHA)
         with zipfile.ZipFile(archive_path) as z:
             names = z.namelist()
