@@ -65,7 +65,13 @@ jobs:
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v 2>&1 | tee "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"
           grep -q 'test_preserved_canonical_bytes_after_retention_expiry' "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"
-          grep -q '^OK      - name: Install official Godot 4.3 Linux runtime and Xvfb
+          if grep -Fq "skipped=" "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"; then
+            echo "ERROR: canonical-byte retention regression was skipped"
+            exit 1
+          fi
+          grep -Fq "OK" "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"
+          echo "REAL_CANONICAL_BYTES_RETENTION_EXPIRY_REGRESSION_PASS_NOT_PHYSICAL_QA"
+      - name: Install official Godot 4.3 Linux runtime and Xvfb
         shell: bash
         run: |
           set -euo pipefail
