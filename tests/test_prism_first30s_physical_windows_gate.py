@@ -1,9 +1,12 @@
 """Fail-closed physical acceptance: fixture can never prove human GUI or sale."""
 import copy
+import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import struct
 import tempfile
+import zipfile
 import unittest
 from unittest.mock import patch
 import zlib
@@ -89,23 +92,58 @@ class PhysicalGateTests(unittest.TestCase):
         self.assertFalse(result["store_submission_allowed"])
         self.assertEqual(result["physical_screenshot_sha256_count"], 36)
 
-    def test_preserved_artifact_after_retention_and_code_integrity_block(self):
+    def test_code_integrity_and_expiry_metadata_mismatch_fail_closed(self):
         for status in ("NOT_CHECKED", "BLOCKED_BY_CODE_INTEGRITY", "BYPASSED"):
             item = copy.deepcopy(self.capture)
             item["code_integrity_status"] = status
             with self.subTest(status=status), self.assertRaisesRegex(PhysicalGateHold, "CODE_INTEGRITY_HOLD"):
                 self.check(item)
         item = copy.deepcopy(self.capture)
-        item["factory_artifact_expires_at"] = "2026-11-10T15:32:35Z"
+        item["factory_artifact_expires_at"] = "2026-11-30T07:32:37Z"
         with self.assertRaisesRegex(PhysicalGateHold, "expiry metadata mismatch"):
             self.check(item)
-        with patch("prism_first30s_physical_windows_gate.digest",
-                   side_effect=lambda p: EXE_SHA if p.suffix == ".exe" else PCK_SHA):
-            # GitHub retention expiry must not invalidate preserved exact bytes.
-            receipt = evaluate(copy.deepcopy(self.capture), self.root, windows_host=True,
-                               now=datetime(2026, 11, 17, tzinfo=timezone.utc))
-            self.assertEqual(receipt["status"], "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
-            self.assertFalse(receipt["sale_ready"])
+
+    def test_preserved_canonical_bytes_after_retention_expiry(self):
+        archive = os.environ.get("PRISM_B03_CANONICAL_ZIP")
+        if not archive:
+            self.skipTest("canonical Factory ZIP not supplied; real-byte expiry path not exercised")
+        archive_path = Path(archive)
+        self.assertTrue(archive_path.is_file(), "canonical Factory ZIP is missing")
+
+        from prism_consumer_artifact_runtime_gate import ZIP_SHA, ZIP_SIZE, MEMBERS
+        archive_bytes = archive_path.read_bytes()
+        self.assertEqual(len(archive_bytes), ZIP_SIZE)
+        self.assertEqual(hashlib.sha256(archive_bytes).hexdigest(), ZIP_SHA)
+        with zipfile.ZipFile(archive_path) as z:
+            names = z.namelist()
+            self.assertEqual(len(names), len(MEMBERS))
+            self.assertEqual(set(names), set(MEMBERS))
+            exe_bytes = z.read("candidate.exe")
+            pck_bytes = z.read("candidate.pck")
+        for name, data in (("candidate.exe", exe_bytes), ("candidate.pck", pck_bytes)):
+            self.assertEqual(len(data), MEMBERS[name][0])
+            self.assertEqual(hashlib.sha256(data).hexdigest(), MEMBERS[name][1])
+
+        # The live artifact's retention ended 2026-11-30T07:32:37Z.
+        # Test after that point using preserved, independently verified real bytes.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe_path = root / "candidate.exe"
+            pck_path = root / "candidate.pck"
+            exe_path.write_bytes(exe_bytes)
+            pck_path.write_bytes(pck_bytes)
+            item = copy.deepcopy(self.capture)
+            item["exe_path"] = str(exe_path)
+            item["pck_path"] = str(pck_path)
+            receipt = evaluate(
+                item, self.root, windows_host=True,
+                now=datetime(2026, 12, 1, tzinfo=timezone.utc),
+            )
+        self.assertEqual(receipt["status"], "PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED")
+        self.assertEqual(receipt["physical_screenshot_sha256_count"], 36)
+        self.assertFalse(receipt["physical_gui_automatically_proven"])
+        self.assertFalse(receipt["sale_ready"])
+        self.assertFalse(receipt["store_submission_allowed"])
 
     def test_handoff_and_gate_share_exact_current_pr25_provenance(self):
         from prism_pr25_physical_handoff import capture_template
