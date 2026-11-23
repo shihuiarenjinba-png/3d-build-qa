@@ -23,8 +23,6 @@ jobs:
           python-version: '3.12'
       - name: Negative boundary regression
         run: python -m unittest discover -s tests -p 'test_prism_consumer_artifact_runtime_gate.py' -v
-      - name: Physical Windows check-only gate negative regression (never SALE_READY)
-        run: python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v
       - name: PR21 software baseline negative fixtures (old SHA, missing image, JA/EN mix)
         run: python -m unittest discover -s tests -p 'test_prism_pr21_software_baseline_gate.py' -v
       - name: Verify live Factory artifact identity, source and expiry
@@ -59,6 +57,152 @@ jobs:
             --archive "$RUNNER_TEMP/prism-real-pck/factory.zip" \
             --extract-to "$RUNNER_TEMP/prism-real-pck/payload" \
             --out "$RUNNER_TEMP/prism-real-pck/byte-preflight.json"
+      - name: Retention-expiry regression with exact canonical EXE/PCK bytes (fixture only)
+        shell: bash
+        env:
+          PRISM_B03_CANONICAL_ZIP: ${{ runner.temp }}/prism-real-pck/factory.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_first30s_physical_windows_gate.py' -v 2>&1 | tee "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"
+          grep -q 'test_preserved_canonical_bytes_after_retention_expiry' "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"
+          grep -q '^OK      - name: Install official Godot 4.3 Linux runtime and Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --max-time 180 \
+            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip \
+            -o "$RUNNER_TEMP/prism-real-pck/godot43.zip"
+          mkdir -p "$RUNNER_TEMP/prism-real-pck/godot"
+          unzip -q "$RUNNER_TEMP/prism-real-pck/godot43.zip" -d "$RUNNER_TEMP/prism-real-pck/godot"
+          chmod +x "$RUNNER_TEMP/prism-real-pck/godot/Godot_v4.3-stable_linux.x86_64"
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y xvfb
+          fi
+      - name: Execute compiled PCK in Godot Mesa/Xvfb and capture seven actual frames
+        shell: bash
+        env:
+          PRISM_SCREENSHOT_DIR: ${{ runner.temp }}/prism-real-pck/screenshots
+          PRISM_RUNTIME_RECEIPT: ${{ runner.temp }}/prism-real-pck/godot-runtime.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$PRISM_SCREENSHOT_DIR"
+          GODOT="$RUNNER_TEMP/prism-real-pck/godot/Godot_v4.3-stable_linux.x86_64"
+          PCK="$RUNNER_TEMP/prism-real-pck/payload/candidate.pck"
+          LIBGL_ALWAYS_SOFTWARE=1 timeout 120s xvfb-run -a "$GODOT" \
+            --path "$RUNNER_TEMP/prism-real-pck/payload" --main-pack "$PCK" \
+            --rendering-method gl_compatibility --audio-driver Dummy \
+            --resolution 1024x768 \
+            --script "$GITHUB_WORKSPACE/tests/prism_consumer_pck_runtime.gd" \
+            2>&1 | tee "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
+          grep -q 'PASS: PRISM_CONSUMER_REAL_PCK_FIRST30S_90S_STATES_7_SCREENSHOTS_NOT_HUMAN_GUI' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"
+          if grep -Eq '(^|[[:space:]])(SCRIPT )?ERROR:' "$RUNNER_TEMP/prism-real-pck/godot-runtime.log"; then exit 1; fi
+      - name: Bind real PCK execution and screenshot hashes to exact Factory bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_consumer_artifact_runtime_gate.py --finalize \
+            --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
+            --runtime-json "$RUNNER_TEMP/prism-real-pck/godot-runtime.json" \
+            --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
+            --out "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          x=json.loads((Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pck-runtime-independent-receipt.json').read_text())
+          assert x['status']=='PCK_LOADED_SOFTWARE_RUNTIME_QA_PASS_NOT_HUMAN_GUI'
+          assert x['godot_pck_executed_this_run'] is True and len(x['software_rendered_screenshots'])==7
+          assert x['physical_windows_gui']=='DEFERRED_LOCAL_GATE'
+          assert x['japanese_font_glyphs_available'] is True
+          assert x['board_colored_bounds']['width'] >= 420
+          assert x['board_colored_bounds']['height'] >= 290
+          assert 'clock_frozen_until_start' in x['godot_4_3_runtime_assertions']
+          assert 'bilingual_start_guide' in x['godot_4_3_runtime_assertions']
+          assert 'hud_contrast_and_type' in x['godot_4_3_runtime_assertions']
+          assert 'bilingual_hint_single_line_1024' in x['godot_4_3_runtime_assertions']
+          assert x['sale_ready'] is False and x['store_submission_allowed'] is False
+          PY
+      - name: Bind all seven current PR25 software frames and SHA to exact QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_pr25_software_baseline_gate.py \
+            --receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
+            --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
+            --out "$RUNNER_TEMP/prism-real-pck/pr21-software-baseline.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP'])/'prism-real-pck/pr21-software-baseline.json'
+          x = json.loads(p.read_text())
+          assert x['status'] == 'PR25_SOFTWARE_BASELINE_BYTES_VERIFIED_NOT_PHYSICAL'
+          assert x['software_screenshot_sha256_count'] == 7
+          assert x['physical_windows_gui'] == 'HOLD'
+          assert x['human_real_time_90s'] == 'HOLD'
+          assert x['sale_ready'] is False and x['store_submission_allowed'] is False
+          PY
+      - name: Verify two additional timeout and post-defeat retry PCK frames (never human QA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_pr21_timeout_retry_gate.py' -v
+          python prism_pr25_timeout_retry_gate.py \
+            --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
+            --runtime "$RUNNER_TEMP/prism-real-pck/godot-runtime.json" \
+            --baseline-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
+            --screenshot-dir "$RUNNER_TEMP/prism-real-pck/screenshots" \
+            --out "$RUNNER_TEMP/prism-real-pck/pr21-timeout-retry-receipt.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'prism-real-pck'
+          r = json.loads((root / 'pr21-timeout-retry-receipt.json').read_text())
+          assert r['status'] == 'PR25_EXACT_PCK_TIMEOUT_RETRY_TWO_STATES_VERIFIED_NOT_PHYSICAL'
+          assert r['all_software_frame_sha256_count'] == 9
+          assert set(r['new_software_frames_verified']) == {'timeout_ja', 'retry_ja'}
+          assert r['physical_windows_gui'] == 'HOLD'
+          assert r['human_real_time_90s'] == 'HOLD'
+          assert r['sale_ready'] is False and r['store_submission_allowed'] is False
+          PY
+      - name: PR25 read-only physical Windows EXE/PCK handoff (exact Factory ZIP CRC and SHA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_pr21_physical_handoff.py' -v
+          python prism_pr25_physical_handoff.py \
+            --build "$RUNNER_TEMP/prism-real-pck/physical-windows-handoff" \
+            --archive "$RUNNER_TEMP/prism-real-pck/factory.zip" \
+            --preflight "$RUNNER_TEMP/prism-real-pck/byte-preflight.json" \
+            --software-receipt "$RUNNER_TEMP/prism-real-pck/pck-runtime-independent-receipt.json" \
+            --screenshots "$RUNNER_TEMP/prism-real-pck/screenshots"
+          python prism_pr25_physical_handoff.py \
+            --verify "$RUNNER_TEMP/prism-real-pck/physical-windows-handoff"
+      - name: Upload exact PR25 EXE/PCK and offline physical QA template (not Store)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-pr25-exact-binary-physical-qa-handoff-not-store
+          path: ${{ runner.temp }}/prism-real-pck/physical-windows-handoff/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Preserve runtime evidence, never label as Store screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-consumer-real-pck-software-qa-not-store
+          path: |
+            ${{ runner.temp }}/prism-real-pck/byte-preflight.json
+            ${{ runner.temp }}/prism-real-pck/godot-runtime.json
+            ${{ runner.temp }}/prism-real-pck/godot-runtime.log
+            ${{ runner.temp }}/prism-real-pck/pck-runtime-independent-receipt.json
+            ${{ runner.temp }}/prism-real-pck/pr21-software-baseline.json
+            ${{ runner.temp }}/prism-real-pck/pr21-timeout-retry-receipt.json
+            ${{ runner.temp }}/prism-real-pck/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 7
+ "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"
+          if grep -E 'skipped=|SKIP' "$RUNNER_TEMP/prism-real-pck/physical-gate-tests.log"; then exit 1; fi
+          echo 'REAL_CANONICAL_BYTES_RETENTION_EXPIRY_REGRESSION_PASS_NOT_PHYSICAL_QA'
       - name: Install official Godot 4.3 Linux runtime and Xvfb
         shell: bash
         run: |
