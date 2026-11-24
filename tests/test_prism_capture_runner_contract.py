@@ -37,7 +37,7 @@ class CaptureRunnerContractTests(unittest.TestCase):
 
     def test_guide_is_captured_before_start_and_frames_are_not_overwritten(self):
         self.assertLess(self.source.index("$GuideFrame = $FramePlan[0]"),
-                        self.source.index("ゲーム内でStartを押す"))
+                        self.source.index("ゲーム内でStartを押し"))
         self.assertIn("physical-capture.json already exists", self.source)
         self.assertIn("physical-frames already contains files", self.source)
 
