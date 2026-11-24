@@ -1,0 +1,35 @@
+name: Prism PR25 physical capture runner syntax (Windows CI only, not physical QA)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-runner-contract:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test six-session capture runner contract
+        shell: pwsh
+        run: python -m unittest discover -s tests -p 'test_prism_capture_runner_contract.py' -v
+      - name: Parse PowerShell without launching the game
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'prism_capture_physical_qa.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List *
+            throw 'PowerShell capture runner syntax failed.'
+          }
+          Write-Host 'WINDOWS_CI_SCRIPT_SYNTAX_PASS_NOT_PHYSICAL_QA'

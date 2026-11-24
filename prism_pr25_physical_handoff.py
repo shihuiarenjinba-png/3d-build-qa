@@ -24,6 +24,7 @@ FILES = (
     "prism_pr25_software_baseline_gate.py",
     "prism_first30s_physical_windows_gate.py",
     "prism_pr25_physical_handoff.py",
+    "prism_capture_physical_qa.ps1",
 )
 FRAMES = ("guide_en", "guide_ja", "initial", "scan", "trap", "win", "ja")
 OBSERVATIONS = (
@@ -112,6 +113,12 @@ def check_handoff(root):
          receipt["pck_sha256"] == preflight["pck_sha256"] and
          receipt["zip_sha256"] == ZIP_SHA, "software receipt not bound to original Factory bytes")
     verify_template(load(root / "physical-capture-TEMPLATE.json"))
+    for name in FILES:
+        helper = root / name
+        need(helper.is_file() and not helper.is_symlink(), "missing/symlink handoff helper: " + name)
+    readme = root / "README-PHYSICAL-QA.txt"
+    need(readme.is_file() and "prism_capture_physical_qa.ps1" in readme.read_text(encoding="utf-8"),
+         "physical capture runner instructions missing")
     handoff = load(root / "handoff-receipt.json")
     need(handoff == {
         "schema_version": 1,
@@ -178,37 +185,36 @@ def build(archive, preflight_path, runtime_receipt, screenshot_dir, destination)
 
 INSTRUCTIONS = """PRISM ROUTE 3D - PR25 EXACT-BINARY PHYSICAL WINDOWS QA (READ-ONLY)
 
-Do not run an unsigned MSIX or bypass Code Integrity, SmartScreen or other security.
-This bundle is not a signed MSIX, Store candidate or approval. Only execute if the
-normal Windows policy allows candidate.exe. A block means DEFERRED_LOCAL_GATE.
+This is not a signed MSIX, Store candidate or approval. Never bypass Code Integrity,
+SmartScreen, execution policy or any other Windows security control. If normal policy
+blocks candidate.exe, stop and leave the result HOLD.
 
 1. Unzip the CI handoff Artifact to a local folder, retaining all filenames.
-2. Install Python 3.10+ if available; in PowerShell from that folder:
+2. Install Python 3.10+ and verify the immutable bundle in PowerShell:
    py -3 .\\prism_pr25_physical_handoff.py --verify .
-   This rechecks original Factory ZIP SHA/CRC, exact EXE/PCK/manifest, source,
-   request, seven independent Godot screenshots and the hold-only template.
-3. Run .\\launch-verified.ps1 ONLY if normal Windows security allows the EXE.
-   It rechecks hashes and starts candidate.exe with candidate.pck alongside.
-4. For JA/100%, JA/125%, JA/150%, EN/100%, EN/125%, EN/150%, set Windows display 1024x768
-   and corresponding scaling. Each is a fresh uncoached first-launch session.
-   Record 30-second goal comprehension, Start-before-clock, tower 1->2->3,
-   yellow warning/red scan, time/warp traps, outcome, retry, real 90 seconds.
-   Record Windows build, actual tester and timezone-aware wall-clock timestamps.
-   Set code_integrity_status to ALLOWED_BY_EXISTING_POLICY only after actual
-   successful launch. If blocked, leave NOT_CHECKED or record BLOCKED_BY_CODE_INTEGRITY;
-   never bypass Windows security. Missing or hash-mismatched Factory bytes are HOLD.
-   Do not manufacture answers, manipulate time or replace missing screenshots.
-5. Copy physical-capture-TEMPLATE.json to physical-capture.json; fill real
-   observations and paths. Save 6 DISTINCT 1024x768 PNGs per session in
-   physical-frames/ using the exact 36 names in the template.
-6. Run on the SAME physical Windows computer:
-   py -3 .\\prism_first30s_physical_windows_gate.py --software-receipt .\\qa11\\pck-runtime-independent-receipt.json --software-screenshot-dir .\\qa11\\screenshots --capture .\\physical-capture.json --screenshot-dir .\\physical-frames --out .\\physical-review-receipt.json
-   GitHub retention expiry alone does not invalidate preserved SHA-verified bytes.\n   Missing evidence fails closed. Even a passing receipt is REVIEW_REQUIRED,
-   never human fun PASS, SALE_READY or Store submission.
+   This rechecks the original Factory ZIP SHA/CRC, exact EXE/PCK/manifest, source,
+   request, seven software-rendered Godot screenshots and the empty HOLD template.
+3. Set the primary Windows display to 1024x768. Before each run, set the requested
+   Windows scaling (100%, 125%, 150%) and game language (JA or EN). The runner does
+   not change display, language, security or registry settings.
+4. Run the guided physical capture runner from the same folder:
+   .\\prism_capture_physical_qa.ps1 -Operator "your operator label"
+   It verifies the EXE/PCK hashes, launches only under the existing Windows policy,
+   checks the game window DPI (96/120/144), captures the six named states for each
+   of JA/EN x DPI100/125/150, records operator observations, and writes
+   physical-capture.json plus 36 PNGs. The guide frame is captured before Start.
+   Each session must include at least 90 real elapsed seconds. Existing partial
+   captures are never overwritten; use a fresh extracted folder for a new attempt.
+5. The runner invokes the fail-closed physical evidence gate on the same PC. It
+   writes physical-review-receipt.json. Missing frames, duplicate hashes, wrong DPI,
+   wrong resolution, failed launch, or any negative observation remains HOLD.
+6. A structurally valid result is only PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED. A
+   human reviewer must still inspect all 36 genuine screenshots and receipts. It
+   never sets SALE_READY or Store submission permission.
 
-The 7 included PNGs are CLOUD SOFTWARE RENDER ONLY, not physical Windows.
-Historical PR20 and old Identity commit 11417b7 do not authenticate this revision.
-Only 36-owner may change central ledger/Identity CAS/Version/Partner Center.
+The 7 included qa11 PNGs are CLOUD SOFTWARE RENDER ONLY, not physical Windows.
+The operator's physical-device statement is an attestation, not hardware attestation.
+Only 36-owner may change central ledger/Identity CAS/Package Version/Partner Center.
 """
 
 LAUNCHER = """# Read-only EXE/PCK launch; NEVER change Windows security policy.
