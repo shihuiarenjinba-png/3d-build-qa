@@ -1,0 +1,70 @@
+name: Prism b03ce7 Mesa rendered PCK diagnostic (not physical QA)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  mesa-rendered-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      MESA_GL_VERSION_OVERRIDE: "3.3"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2
+      - name: Download canonical current Factory export
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" /repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/14797309778/zip > "$RUNNER_TEMP/current.zip"
+          test -s "$RUNNER_TEMP/current.zip"
+      - name: Enforce exact source and EXE/PCK custody
+        env:
+          PRISM_B03_CANONICAL_ZIP: ${{ runner.temp }}/current.zip
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_prism_b03ce7_current_custody.py' -v 2>&1 | tee "$RUNNER_TEMP/custody.log"
+          grep -q 'Ran 3 tests' "$RUNNER_TEMP/custody.log"
+          grep -q '^OK$' "$RUNNER_TEMP/custody.log"
+          if grep -E 'skipped=|SKIP' "$RUNNER_TEMP/custody.log"; then exit 1; fi
+          mkdir -p "$RUNNER_TEMP/current"
+          unzip -q "$RUNNER_TEMP/current.zip" -d "$RUNNER_TEMP/current"
+          test -s "$RUNNER_TEMP/current/candidate.pck"
+      - name: Install official Godot 4.3
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --max-time 180 https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64"
+      - name: Execute with Xvfb and Mesa OpenGL instead of dummy headless renderer
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/current"
+          xvfb-run -a -s '-screen 0 1440x900x24' timeout 90s "$RUNNER_TEMP/Godot_v4.3-stable_linux.x86_64" --audio-driver Dummy --display-driver x11 --rendering-driver opengl3 --rendering-method gl_compatibility --main-pack candidate.pck --quit-after 120 2>&1 | tee "$RUNNER_TEMP/mesa-pck.log"
+          if grep -Eiq '(^|[[:space:]])(SCRIPT ERROR|ERROR):' "$RUNNER_TEMP/mesa-pck.log"; then
+            echo 'MESA_RENDERED_PCK_FAIL_GODOT_ERRORS'
+            exit 1
+          fi
+          echo 'MESA_RENDERED_PCK_PASS_NOT_PHYSICAL'
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-b03ce7-mesa-diagnostic-not-physical
+          path: |
+            ${{ runner.temp }}/custody.log
+            ${{ runner.temp }}/mesa-pck.log
+          if-no-files-found: warn
+          retention-days: 7

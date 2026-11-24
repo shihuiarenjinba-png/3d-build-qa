@@ -1,0 +1,24 @@
+name: Prism b03ce7 current-source custody fixture (not physical QA)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  current-source-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate current-source fixture and explicit physical HOLD
+        run: python -m unittest discover -s tests -p 'test_prism_b03ce7_current_custody.py' -v
+      - name: Declare byte custody and physical QA not proven by fixture-only CI
+        run: |
+          echo 'FIXTURE_ONLY_PASS is not EXACT_BYTES_VERIFIED'
+          echo 'Physical JA/EN x DPI100/125/150 remains 0/6; screenshots 0/36'
+          echo 'Identity/Version untouched; sale HOLD'

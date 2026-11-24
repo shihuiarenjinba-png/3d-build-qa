@@ -1,6 +1,7 @@
 name: Prism PR23 exact real PCK responsive modal layout (software only)
+# Historical PR22/PR23 byte lineage: manual forensic replay only.
+# Do not gate current PR25 on expired historical artifacts.
 on:
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read

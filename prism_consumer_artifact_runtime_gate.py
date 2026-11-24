@@ -11,16 +11,16 @@ from pathlib import Path
 import stat
 import zipfile
 
-SOURCE = '066d9f51d58cfecb994665d5c31adb1156c38942'
-REQUEST = '3d-prism-route-3d-066d9f51d58c'
-ARTIFACT_ID = 13155398069
-RUN_ID = 41472458097
-ZIP_SHA = '1a19000c225b5165a1280ec36b4dcf5eaec4287e39d50f86512b8e9f5ad4dd44'
+SOURCE = 'b03ce7b16c3f75c04fe20fdda224c45849eeba0d'
+REQUEST = '3d-prism-route-3d-b03ce7b16c3f'
+ARTIFACT_ID = 14797309778
+RUN_ID = 43794658086
+ZIP_SHA = 'e2573b9ab11afde6ab6ec7417c23438581620a08bb9dcff76d792a2b5592ccac'
 OLD_PCK = '10acb61a586caa55b2da59ed0aae62f0952cfbaf7a69cac3cf219f3ae2a982c9'
 MEMBERS = {
     'candidate.exe': (84214784, '66b26ad96df7458ea917b632a73ac7c88bb058db24dbd11a457fd50435ab7b13'),
-    'candidate.pck': (6982208, 'a27c198ff4bdaa961780b4e42d5fb429c328c5bad0b5cb816e399c06e3fd8cb9'),
-    'export-evidence.json': (672, '03c04fc0958383ffcffa6e0bed35706b813f517526c793278e662ac2413f8ed9'),
+    'candidate.pck': (6987584, 'b7abc0f9caf2e505a1dcaf834b4cb897d8f00df4060c31708914e8bb4f3d5666'),
+    'export-evidence.json': (680, '442d2c9070e017adf1c0ceaa96ba607f470c0f147176671f8a844122aca4d5bd'),
 }
 REQUIRED_RESOURCES = {
     'res://project.binary', 'res://scenes/main.tscn.remap',
@@ -48,7 +48,7 @@ def unique_pairs(pairs):
 def verify_archive(path: Path, *, extract_to: Path | None = None):
     from prism_sentinel_release_pck_content_gate import parse_pck, prohibited_resource
     need(path.is_file() and not path.is_symlink(), 'missing or symlink ZIP')
-    need(path.stat().st_size == 37794175, 'ZIP size drift')
+    need(path.stat().st_size == 37795977, 'ZIP size drift')
     need(sha(path.read_bytes()) == ZIP_SHA, 'ZIP SHA drift')
     with zipfile.ZipFile(path) as z:
         infos = z.infolist()
@@ -63,7 +63,7 @@ def verify_archive(path: Path, *, extract_to: Path | None = None):
         need(manifest.get('schema_version') == 1 and manifest.get('slug') == 'prism-route-3d' and
              manifest.get('product_type') == 'GAME_3D' and
              manifest.get('source_repository') == 'shihuiarenjinba-png/3d-game-factory' and
-             manifest.get('source_branch') == 'codex/prism-bottom-hint-wrap-20261103' and
+             manifest.get('source_branch') == 'codex/prism-tower1-hud-clearance-fix-20261103' and
              manifest.get('source_sha') == SOURCE and manifest.get('request_id') == REQUEST and
              manifest.get('factory_build_head') == SOURCE, 'new revision source/request/build drift')
         for kind in ('exe', 'pck'):
