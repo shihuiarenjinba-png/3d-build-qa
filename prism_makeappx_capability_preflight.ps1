@@ -67,3 +67,4 @@ $parent = Split-Path -Parent $OutputPath
 if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
 $r | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $OutputPath -Encoding utf8NoBOM
 Write-Output ($r | ConvertTo-Json -Depth 8)
+exit 0
