@@ -1,7 +1,10 @@
 import unittest
+from datetime import datetime, timezone
 from prism_package_preflight_contract import (
     ARTIFACT_ID, RUN_ID, ZIP_SHA, MEMBERS, PACKAGE_DIR, REQUEST, SOURCE,
-    Hold, build_plan, version_gate,
+    HANDOFF_ARTIFACT_ID, HANDOFF_RUN_ID, HANDOFF_SOURCE, HANDOFF_SHA,
+    HANDOFF_NAME, HANDOFF_BRANCH, HANDOFF_SIZE, HANDOFF_REPOSITORY,
+    Hold, build_plan, version_gate, verify_handoff_metadata,
 )
 
 def preflight():
@@ -68,6 +71,41 @@ class PackagePreflightTests(unittest.TestCase):
             with self.subTest(key=key):
                 with self.assertRaises(Hold):
                     build_plan(bad)
+
+    def test_physical_handoff_metadata_is_bound_to_pr19_source_and_retention(self):
+        metadata = {
+            "id": HANDOFF_ARTIFACT_ID, "name": HANDOFF_NAME,
+            "size_in_bytes": HANDOFF_SIZE, "digest": "sha256:" + HANDOFF_SHA,
+            "expired": False, "expires_at": "2026-12-01T18:39:16Z",
+            "workflow_run": {
+                "id": HANDOFF_RUN_ID, "head_sha": HANDOFF_SOURCE,
+                "head_branch": HANDOFF_BRANCH,
+            },
+        }
+        result = verify_handoff_metadata(
+            metadata, now=datetime(2026, 11, 28, tzinfo=timezone.utc)
+        )
+        self.assertTrue(result["metadata_verified"])
+        self.assertEqual(result["artifact_id"], 14952074847)
+        self.assertEqual(result["source_sha"], HANDOFF_SOURCE)
+        self.assertEqual(HANDOFF_REPOSITORY, "shihuiarenjinba-png/3d-build-qa")
+
+    def test_wrong_or_expired_physical_handoff_metadata_fails_closed(self):
+        base = {
+            "id": HANDOFF_ARTIFACT_ID, "name": HANDOFF_NAME,
+            "size_in_bytes": HANDOFF_SIZE, "digest": "sha256:" + HANDOFF_SHA,
+            "expired": False, "expires_at": "2026-12-01T18:39:16Z",
+            "workflow_run": {
+                "id": HANDOFF_RUN_ID, "head_sha": HANDOFF_SOURCE,
+                "head_branch": HANDOFF_BRANCH,
+            },
+        }
+        bad = dict(base)
+        bad["id"] = 13180284133
+        with self.assertRaises(Hold):
+            verify_handoff_metadata(bad, now=datetime(2026, 11, 28, tzinfo=timezone.utc))
+        with self.assertRaises(Hold):
+            verify_handoff_metadata(base, now=datetime(2026, 12, 2, tzinfo=timezone.utc))
 
     def test_fixture_never_builds_or_submits_product(self):
         p = build_plan(preflight())
