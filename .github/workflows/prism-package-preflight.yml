@@ -1,0 +1,105 @@
+name: Prism QA-only package preflight (not product MSIX)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prism-package-preflight.yml'
+      - 'prism_package_preflight_contract.py'
+      - 'prism_makeappx_capability_preflight.ps1'
+      - 'tests/test_prism_package_preflight_contract.py'
+      - 'docs/PRISM_PACKAGE_PREFLIGHT_QA_ONLY.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  factory-byte-custody-and-package-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FACTORY_ARTIFACT_ID: '14797309778'
+      GH_TOKEN: ${{ github.token }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Assert checkout is exact PR head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+      - name: Download canonical Factory metadata and exact ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/prism-package-preflight"
+          curl -fLsS --retry 3 --max-time 45 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID" \
+            -o "$RUNNER_TEMP/prism-package-preflight/factory-metadata.json"
+          curl -fLsS --retry 3 --max-time 180 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID/zip" \
+            -o "$RUNNER_TEMP/prism-package-preflight/factory-original.zip"
+      - name: Verify exact bytes and write package layout plan only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python prism_package_preflight_contract.py \
+            --metadata "$RUNNER_TEMP/prism-package-preflight/factory-metadata.json" \
+            --archive "$RUNNER_TEMP/prism-package-preflight/factory-original.zip" \
+            --receipt-out "$RUNNER_TEMP/prism-package-preflight/factory-byte-custody.json" \
+            --plan-out "$RUNNER_TEMP/prism-package-preflight/package-layout-plan.json"
+          python -m unittest discover -s tests -p 'test_prism_package_preflight_contract.py' -v
+      - name: Preserve original Factory ZIP in QA-owned artifact (30-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-pr25-factory-byte-custody-qa-only
+          path: |
+            ${{ runner.temp }}/prism-package-preflight/factory-original.zip
+            ${{ runner.temp }}/prism-package-preflight/factory-byte-custody.json
+            ${{ runner.temp }}/prism-package-preflight/package-layout-plan.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+  windows-sdk-makeappx-capability:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Assert checkout is exact PR head
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:PR_HEAD_SHA) { throw 'Checkout is not exact PR head' }
+      - name: Run fail-closed package contract tests on Windows
+        shell: pwsh
+        run: python -m unittest discover -s tests -p 'test_prism_package_preflight_contract.py' -v
+      - name: Read-only Windows SDK and MakeAppx capability probe
+        shell: pwsh
+        run: .\prism_makeappx_capability_preflight.ps1 -OutputPath "$env:RUNNER_TEMP\prism-makeappx-capability-readonly.json"
+      - name: Require Microsoft-signed MakeAppx capability
+        shell: pwsh
+        run: |
+          $r = Get-Content "$env:RUNNER_TEMP\prism-makeappx-capability-readonly.json" -Raw | ConvertFrom-Json
+          if ($r.status -ne 'MAKEAPPX_CAPABILITY_VERIFIED_READ_ONLY') { throw "MakeAppx capability HOLD: $($r.status)" }
+          if ($r.package_build_invoked -or $r.package_file_created -or $r.product_msix_created) { throw 'Unexpected package build' }
+      - name: Preserve capability receipt including HOLD diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-makeappx-capability-readonly-qa-only
+          path: ${{ runner.temp }}/prism-makeappx-capability-readonly.json
+          if-no-files-found: warn
+          retention-days: 30
