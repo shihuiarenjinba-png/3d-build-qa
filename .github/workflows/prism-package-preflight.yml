@@ -69,7 +69,7 @@ jobs:
             --plan-out "$RUNNER_TEMP/prism-package-preflight/package-layout-plan.json" \
             --handoff-receipt-out "$RUNNER_TEMP/prism-package-preflight/physical-handoff-custody.json"
           python -m unittest discover -s tests -p 'test_prism_package_preflight_contract.py' -v
-      - name: Preserve original Factory ZIP in QA-owned artifact (30-day retention)
+      - name: Preserve exact Factory ZIP and physical handoff in QA-owned artifact (30-day retention)
         uses: actions/upload-artifact@v4
         with:
           name: prism-pr25-factory-and-physical-handoff-custody-qa-only
