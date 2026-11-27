@@ -141,7 +141,7 @@ def verify_archive(path):
         "sale_ready": False, "store_submission_allowed": False,
     }
 
-def verify_handoff_metadata(m):
+def verify_handoff_metadata(m, *, now=None):
     expected = {"id": HANDOFF_ARTIFACT_ID, "name": HANDOFF_NAME,
                 "size_in_bytes": HANDOFF_SIZE, "digest": "sha256:" + HANDOFF_SHA,
                 "expired": False}
@@ -156,7 +156,7 @@ def verify_handoff_metadata(m):
     need(isinstance(expiry_text, str) and expiry_text == "2026-12-01T18:39:16Z",
          "physical handoff expiry mismatch")
     expiry = datetime.fromisoformat(expiry_text.replace("Z", "+00:00"))
-    need(datetime.now(timezone.utc) < expiry, "physical handoff artifact expired")
+    need((now or datetime.now(timezone.utc)) < expiry, "physical handoff artifact expired")
     return {"artifact_id": HANDOFF_ARTIFACT_ID, "run_id": HANDOFF_RUN_ID,
             "source_sha": HANDOFF_SOURCE, "expires_at": expiry_text, "metadata_verified": True}
 
