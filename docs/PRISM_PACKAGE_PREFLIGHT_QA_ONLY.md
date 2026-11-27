@@ -33,3 +33,23 @@ synthetic and self-asserted Package Version values remain HOLD. No real
 Identity, Version, Store write, product MSIX or sale approval is created.
 Physical Windows QA remains 0/6 sessions and 0/36 screenshots until genuine
 local evidence is collected and reviewed.
+
+
+## Physical capture handoff preservation
+
+The same Ubuntu custody job also verifies and preserves the exact PR19 physical
+capture handoff, so the operator runner does not disappear when its original
+short-retention artifact expires:
+
+- Original artifact: 14952074847, run 45461731033, PR19 HEAD
+  9b90bfc9dfa6ded9699c3f22df45390be909dae8
+- Original ZIP SHA256:
+  35ae3ea873e0b122fe2cb138a170cd233cf89c7c81e8fed4262139d366a4c4c6
+- The verifier checks the complete member set, ZIP CRC, embedded original
+  Factory ZIP SHA, EXE/PCK/manifest bytes, handoff receipt and empty 6-session /
+  36-filename physical capture template.
+- The handoff receipt must still declare physical screenshots 0, physical GUI
+  HOLD, sale_ready false and Store submission false.
+- Both the original Factory ZIP and the original physical handoff ZIP are
+  retained together in the QA-owned artifact for 30 days. This preserves
+  capture tooling and evidence, not physical QA itself.
