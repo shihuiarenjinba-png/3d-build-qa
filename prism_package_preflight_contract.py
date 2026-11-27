@@ -27,6 +27,25 @@ ASSETS = (
 )
 VERSION_RE = re.compile(r"^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$")
 
+HANDOFF_REPOSITORY = "shihuiarenjinba-png/3d-build-qa"
+HANDOFF_BRANCH = "codex/prism-pr25-exact-pck-qa-20261106"
+HANDOFF_SOURCE = "9b90bfc9dfa6ded9699c3f22df45390be909dae8"
+HANDOFF_RUN_ID, HANDOFF_ARTIFACT_ID = 45461731033, 14952074847
+HANDOFF_NAME = "prism-pr25-exact-binary-physical-qa-handoff-not-store"
+HANDOFF_SIZE = 129481721
+HANDOFF_SHA = "35ae3ea873e0b122fe2cb138a170cd233cf89c7c81e8fed4262139d366a4c4c6"
+HANDOFF_MEMBERS = {
+    "candidate.exe", "candidate.pck", "README-PHYSICAL-QA.txt", "export-evidence.json",
+    "factory-original.zip", "launch-verified.ps1", "handoff-receipt.json",
+    "physical-capture-TEMPLATE.json", "prism_capture_physical_qa.ps1",
+    "prism_consumer_artifact_runtime_gate.py", "prism_first30s_physical_windows_gate.py",
+    "prism_pr25_physical_handoff.py", "prism_pr25_software_baseline_gate.py",
+    "prism_sentinel_release_pck_content_gate.py", "qa11/pck-runtime-independent-receipt.json",
+    "qa11/screenshots/guide_en.png", "qa11/screenshots/guide_ja.png",
+    "qa11/screenshots/initial.png", "qa11/screenshots/ja.png",
+    "qa11/screenshots/scan.png", "qa11/screenshots/trap.png", "qa11/screenshots/win.png",
+}
+
 class Hold(ValueError):
     pass
 
@@ -122,6 +141,92 @@ def verify_archive(path):
         "sale_ready": False, "store_submission_allowed": False,
     }
 
+def verify_handoff_metadata(m):
+    expected = {"id": HANDOFF_ARTIFACT_ID, "name": HANDOFF_NAME,
+                "size_in_bytes": HANDOFF_SIZE, "digest": "sha256:" + HANDOFF_SHA,
+                "expired": False}
+    need(type(m) is dict, "physical handoff metadata missing")
+    for k, v in expected.items():
+        need(type(m.get(k)) is type(v) and m.get(k) == v, "handoff metadata mismatch: " + k)
+    run = m.get("workflow_run")
+    need(type(run) is dict and run.get("id") == HANDOFF_RUN_ID and
+         run.get("head_sha") == HANDOFF_SOURCE and run.get("head_branch") == HANDOFF_BRANCH,
+         "physical handoff PR19 provenance mismatch")
+    expiry_text = m.get("expires_at")
+    need(isinstance(expiry_text, str) and expiry_text == "2026-12-01T18:39:16Z",
+         "physical handoff expiry mismatch")
+    expiry = datetime.fromisoformat(expiry_text.replace("Z", "+00:00"))
+    need(datetime.now(timezone.utc) < expiry, "physical handoff artifact expired")
+    return {"artifact_id": HANDOFF_ARTIFACT_ID, "run_id": HANDOFF_RUN_ID,
+            "source_sha": HANDOFF_SOURCE, "expires_at": expiry_text, "metadata_verified": True}
+
+def verify_handoff_archive(path):
+    need(isinstance(path, Path) and path.is_file() and not path.is_symlink(),
+         "physical handoff ZIP missing or unsafe")
+    need(path.stat().st_size == HANDOFF_SIZE, "physical handoff ZIP byte length mismatch")
+    need(sha_file(path) == HANDOFF_SHA, "physical handoff ZIP SHA256 mismatch")
+    try:
+        with zipfile.ZipFile(path) as z:
+            infos = z.infolist()
+            names = [i.filename for i in infos]
+            need(len(names) == len(set(names)) and set(names) == HANDOFF_MEMBERS,
+                 "physical handoff ZIP member set/duplicate mismatch")
+            need(z.testzip() is None, "physical handoff ZIP CRC failure")
+            for i in infos:
+                need(not i.is_dir() and not (i.flag_bits & 1) and
+                     not stat.S_ISLNK(i.external_attr >> 16),
+                     "unsafe physical handoff member: " + i.filename)
+            def member(name):
+                return z.read(name)
+            exe, pck = member("candidate.exe"), member("candidate.pck")
+            factory_zip, manifest = member("factory-original.zip"), member("export-evidence.json")
+            need(len(exe) == MEMBERS["candidate.exe"][0] and sha_bytes(exe) == MEMBERS["candidate.exe"][1],
+                 "handoff EXE bytes mismatch")
+            need(len(pck) == MEMBERS["candidate.pck"][0] and sha_bytes(pck) == MEMBERS["candidate.pck"][1],
+                 "handoff PCK bytes mismatch")
+            need(len(factory_zip) == ZIP_SIZE and sha_bytes(factory_zip) == ZIP_SHA,
+                 "embedded original Factory ZIP mismatch")
+            need(len(manifest) == MEMBERS["export-evidence.json"][0] and
+                 sha_bytes(manifest) == MEMBERS["export-evidence.json"][1],
+                 "handoff export-evidence bytes mismatch")
+            receipt = json.loads(member("handoff-receipt.json").decode("utf-8"),
+                                 object_pairs_hook=unique_pairs)
+            need(receipt.get("status") == "EXACT_PR25_BINARY_HANDOFF_VERIFIED_NOT_PHYSICAL" and
+                 receipt.get("source_sha") == SOURCE and receipt.get("request_id") == REQUEST and
+                 receipt.get("factory_artifact_id") == ARTIFACT_ID and
+                 receipt.get("factory_zip_sha256") == ZIP_SHA and
+                 receipt.get("exe_sha256") == MEMBERS["candidate.exe"][1] and
+                 receipt.get("pck_sha256") == MEMBERS["candidate.pck"][1] and
+                 receipt.get("physical_screenshots_captured") == 0 and
+                 receipt.get("physical_windows_gui") == "HOLD" and
+                 receipt.get("sale_ready") is False and
+                 receipt.get("store_submission_allowed") is False,
+                 "physical handoff receipt claims or provenance mismatch")
+            template = json.loads(member("physical-capture-TEMPLATE.json").decode("utf-8"),
+                                  object_pairs_hook=unique_pairs)
+            need(template.get("source_sha") == SOURCE and template.get("request_id") == REQUEST and
+                 template.get("factory_artifact_id") == ARTIFACT_ID and
+                 template.get("factory_artifact_expires_at") is None and
+                 template.get("physical_device") is False and
+                 template.get("code_integrity_status") == "NOT_CHECKED" and
+                 len(template.get("sessions", [])) == 6,
+                 "physical capture template is not an empty fail-closed template")
+            screenshot_names = [name for session in template["sessions"]
+                                for name in session["screenshots"].values()]
+            need(len(screenshot_names) == 36 and len(set(screenshot_names)) == 36,
+                 "physical template must contain 36 unique expected filenames")
+            readme = member("README-PHYSICAL-QA.txt").decode("utf-8").lower()
+            need("prism_capture_physical_qa.ps1" in readme and "not a signed msix" in readme,
+                 "physical runner instructions missing safety boundary")
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError) as e:
+        raise Hold("physical handoff ZIP parse/CRC failure: " + type(e).__name__) from None
+    return {"status": "EXACT_PR19_PHYSICAL_HANDOFF_CUSTODY_VERIFIED_NOT_PHYSICAL",
+            "artifact_id": HANDOFF_ARTIFACT_ID, "run_id": HANDOFF_RUN_ID,
+            "source_sha": HANDOFF_SOURCE, "zip_sha256": HANDOFF_SHA,
+            "embedded_factory_zip_sha256": ZIP_SHA,
+            "physical_screenshots_captured": 0, "physical_windows_gui": "HOLD",
+            "sale_ready": False, "store_submission_allowed": False}
+
 def version_gate(evidence):
     if evidence is None:
         return "HOLD_MISSING_AUTHORITATIVE_FOUR_PART_VERSION"
@@ -181,18 +286,25 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--metadata", type=Path, required=True)
     ap.add_argument("--archive", type=Path, required=True)
+    ap.add_argument("--handoff-metadata", type=Path, required=True)
+    ap.add_argument("--handoff-archive", type=Path, required=True)
     ap.add_argument("--receipt-out", type=Path, required=True)
     ap.add_argument("--plan-out", type=Path, required=True)
+    ap.add_argument("--handoff-receipt-out", type=Path, required=True)
     a = ap.parse_args()
     try:
         meta = json.loads(a.metadata.read_text(encoding="utf-8"), object_pairs_hook=unique_pairs)
         meta_receipt = verify_metadata(meta)
+        handoff_meta = json.loads(a.handoff_metadata.read_text(encoding="utf-8"), object_pairs_hook=unique_pairs)
+        handoff_meta_receipt = verify_handoff_metadata(handoff_meta)
+        handoff_receipt = verify_handoff_archive(a.handoff_archive)
         preflight = verify_archive(a.archive)
         plan = build_plan(preflight)
         canonical = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
         receipt = {
             "status": "EXACT_FACTORY_BYTES_CUSTODY_VERIFIED_PACKAGE_PREFLIGHT_HOLD",
-            "metadata": meta_receipt, "source_sha": SOURCE, "request_id": REQUEST,
+            "metadata": meta_receipt, "physical_handoff_metadata": handoff_meta_receipt,
+            "physical_handoff": handoff_receipt, "source_sha": SOURCE, "request_id": REQUEST,
             "factory_artifact_id": ARTIFACT_ID, "factory_zip_sha256": ZIP_SHA,
             "exe_sha256": MEMBERS["candidate.exe"][1], "pck_sha256": MEMBERS["candidate.pck"][1],
             "manifest_sha256": MEMBERS["export-evidence.json"][1],
@@ -208,6 +320,8 @@ def main():
         a.plan_out.parent.mkdir(parents=True, exist_ok=True)
         a.receipt_out.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
         a.plan_out.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+        a.handoff_receipt_out.parent.mkdir(parents=True, exist_ok=True)
+        a.handoff_receipt_out.write_text(json.dumps(handoff_receipt, indent=2) + "\n", encoding="utf-8")
     except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile) as e:
         print(json.dumps({"status": "PACKAGE_PREFLIGHT_HOLD", "reason": str(e)[:240],
                           "product_msix_created": False, "store_submission_allowed": False}))
