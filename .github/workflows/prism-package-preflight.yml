@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 15
     env:
       FACTORY_ARTIFACT_ID: '14797309778'
+      HANDOFF_ARTIFACT_ID: '14952074847'
       GH_TOKEN: ${{ github.token }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
@@ -45,6 +46,16 @@ jobs:
             -H 'Accept: application/vnd.github+json' \
             "https://api.github.com/repos/shihuiarenjinba-png/3d-game-factory/actions/artifacts/$FACTORY_ARTIFACT_ID/zip" \
             -o "$RUNNER_TEMP/prism-package-preflight/factory-original.zip"
+          curl -fLsS --retry 3 --max-time 45 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-build-qa/actions/artifacts/$HANDOFF_ARTIFACT_ID" \
+            -o "$RUNNER_TEMP/prism-package-preflight/handoff-metadata.json"
+          curl -fLsS --retry 3 --max-time 240 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/shihuiarenjinba-png/3d-build-qa/actions/artifacts/$HANDOFF_ARTIFACT_ID/zip" \
+            -o "$RUNNER_TEMP/prism-package-preflight/physical-handoff-original.zip"
       - name: Verify exact bytes and write package layout plan only
         shell: bash
         run: |
@@ -52,17 +63,22 @@ jobs:
           python prism_package_preflight_contract.py \
             --metadata "$RUNNER_TEMP/prism-package-preflight/factory-metadata.json" \
             --archive "$RUNNER_TEMP/prism-package-preflight/factory-original.zip" \
+            --handoff-metadata "$RUNNER_TEMP/prism-package-preflight/handoff-metadata.json" \
+            --handoff-archive "$RUNNER_TEMP/prism-package-preflight/physical-handoff-original.zip" \
             --receipt-out "$RUNNER_TEMP/prism-package-preflight/factory-byte-custody.json" \
-            --plan-out "$RUNNER_TEMP/prism-package-preflight/package-layout-plan.json"
+            --plan-out "$RUNNER_TEMP/prism-package-preflight/package-layout-plan.json" \
+            --handoff-receipt-out "$RUNNER_TEMP/prism-package-preflight/physical-handoff-custody.json"
           python -m unittest discover -s tests -p 'test_prism_package_preflight_contract.py' -v
       - name: Preserve original Factory ZIP in QA-owned artifact (30-day retention)
         uses: actions/upload-artifact@v4
         with:
-          name: prism-pr25-factory-byte-custody-qa-only
+          name: prism-pr25-factory-and-physical-handoff-custody-qa-only
           path: |
             ${{ runner.temp }}/prism-package-preflight/factory-original.zip
             ${{ runner.temp }}/prism-package-preflight/factory-byte-custody.json
             ${{ runner.temp }}/prism-package-preflight/package-layout-plan.json
+            ${{ runner.temp }}/prism-package-preflight/physical-handoff-original.zip
+            ${{ runner.temp }}/prism-package-preflight/physical-handoff-custody.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
