@@ -1,0 +1,54 @@
+name: Prism physical QA checkpoint-resume contract (not physical QA)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ubuntu-checkpoint-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate append-only checkpoints, resume and final gate schema
+        run: python -m unittest discover -s tests -p 'test_prism_capture_resume.py' -v
+      - name: Validate bundled runner contract
+        run: python -m unittest discover -s tests -p 'test_prism_capture_runner_contract.py' -v
+      - name: Keep physical QA boundary explicit
+        run: |
+          echo 'CHECKPOINT_CONTRACT_PASS_NOT_PHYSICAL_WINDOWS_QA'
+          echo 'No game launch, physical capture, Identity, Version, MSIX or Store action'
+  windows-runner-contract:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate append-only checkpoints on Windows
+        run: python -m unittest discover -s tests -p 'test_prism_capture_resume.py' -v
+      - name: Parse PowerShell runner without launching the game
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'prism_capture_physical_qa_resumable.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List *
+            throw 'Resumable PowerShell capture runner syntax failed.'
+          }
+          Write-Host 'WINDOWS_RUNNER_SYNTAX_PASS_NOT_PHYSICAL_QA'
+      - name: Validate runner bundle contract
+        run: python -m unittest discover -s tests -p 'test_prism_capture_runner_contract.py' -v
