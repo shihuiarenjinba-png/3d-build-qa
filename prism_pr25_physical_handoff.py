@@ -208,7 +208,7 @@ blocks candidate.exe, stop and leave the result HOLD.
    attempt directory with six PNGs, measured SHA256 values, timezone-aware start/
    finish timestamps, a Stopwatch-based 90-second gameplay interval, language/DPI,
    operator and physical-device attestation, and the exact source/request/artifact
-   tuple. A completed session is checkpointed only after all checks pass.
+   tuple. The accompanying prism_physical_capture_checkpoint.py validates and recovers completed session checkpoints. A session is checkpointed only after all checks pass.
 5. On restart, the runner revalidates every completed checkpoint and all six PNG
    hashes before skipping that session. A valid session.json left just before an
    interruption is recovered only after the same full validation. Partial/corrupt
