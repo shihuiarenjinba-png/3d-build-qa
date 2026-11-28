@@ -25,6 +25,8 @@ FILES = (
     "prism_first30s_physical_windows_gate.py",
     "prism_pr25_physical_handoff.py",
     "prism_capture_physical_qa.ps1",
+    "prism_capture_physical_qa_resumable.ps1",
+    "prism_physical_capture_checkpoint.py",
 )
 FRAMES = ("guide_en", "guide_ja", "initial", "scan", "trap", "win", "ja")
 OBSERVATIONS = (
@@ -117,8 +119,10 @@ def check_handoff(root):
         helper = root / name
         need(helper.is_file() and not helper.is_symlink(), "missing/symlink handoff helper: " + name)
     readme = root / "README-PHYSICAL-QA.txt"
-    need(readme.is_file() and "prism_capture_physical_qa.ps1" in readme.read_text(encoding="utf-8"),
-         "physical capture runner instructions missing")
+    need(readme.is_file() and
+         "prism_capture_physical_qa_resumable.ps1" in readme.read_text(encoding="utf-8") and
+         "prism_physical_capture_checkpoint.py" in readme.read_text(encoding="utf-8"),
+         "resumable physical capture runner/checkpoint instructions missing")
     handoff = load(root / "handoff-receipt.json")
     need(handoff == {
         "schema_version": 1,
@@ -197,17 +201,21 @@ blocks candidate.exe, stop and leave the result HOLD.
 3. Set the primary Windows display to 1024x768. Before each run, set the requested
    Windows scaling (100%, 125%, 150%) and game language (JA or EN). The runner does
    not change display, language, security or registry settings.
-4. Run the guided physical capture runner from the same folder:
-   .\\prism_capture_physical_qa.ps1 -Operator "your operator label"
-   It verifies the EXE/PCK hashes, launches only under the existing Windows policy,
-   checks the game window DPI (96/120/144), captures the six named states for each
-   of JA/EN x DPI100/125/150, records operator observations, and writes
-   physical-capture.json plus 36 PNGs. The guide frame is captured before Start.
-   Each session must include at least 90 real elapsed seconds. Existing partial
-   captures are never overwritten; use a fresh extracted folder for a new attempt.
-5. The runner invokes the fail-closed physical evidence gate on the same PC. It
-   writes physical-review-receipt.json. Missing frames, duplicate hashes, wrong DPI,
-   wrong resolution, failed launch, or any negative observation remains HOLD.
+4. Run the resumable physical capture runner from the same folder:
+   .\\prism_capture_physical_qa_resumable.ps1 -Operator "your operator label"
+   It verifies the exact PR25 EXE/PCK hashes and checks the real game-window DPI
+   (96/120/144). Each JA/EN x DPI100/125/150 session is stored in its own unique
+   attempt directory with six PNGs, measured SHA256 values, timezone-aware start/
+   finish timestamps, a Stopwatch-based 90-second gameplay interval, language/DPI,
+   operator and physical-device attestation, and the exact source/request/artifact
+   tuple. The accompanying prism_physical_capture_checkpoint.py validates and recovers completed session checkpoints. A session is checkpointed only after all checks pass.
+5. On restart, the runner revalidates every completed checkpoint and all six PNG
+   hashes before skipping that session. A valid session.json left just before an
+   interruption is recovered only after the same full validation. Partial/corrupt
+   attempts remain HOLD and are preserved; the runner asks before creating a new
+   empty attempt and never overwrites or silently repairs existing bytes. Only
+   after all six sessions validate does it assemble physical-capture.json and the
+   36 flat PNGs, then invoke the existing fail-closed review gate.
 6. A structurally valid result is only PHYSICAL_QA_EVIDENCE_REVIEW_REQUIRED. A
    human reviewer must still inspect all 36 genuine screenshots and receipts. It
    never sets SALE_READY or Store submission permission.

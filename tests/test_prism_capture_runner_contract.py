@@ -16,7 +16,11 @@ class CaptureRunnerContractTests(unittest.TestCase):
 
     def test_runner_is_in_the_offline_handoff_and_readme(self):
         self.assertIn("prism_capture_physical_qa.ps1", FILES)
-        self.assertIn("prism_capture_physical_qa.ps1", INSTRUCTIONS)
+        self.assertIn("prism_capture_physical_qa_resumable.ps1", FILES)
+        self.assertIn("prism_physical_capture_checkpoint.py", FILES)
+        self.assertIn("prism_capture_physical_qa_resumable.ps1", INSTRUCTIONS)
+        self.assertIn("Stopwatch", INSTRUCTIONS)
+        self.assertIn("never overwrites", INSTRUCTIONS)
 
     def test_all_six_language_dpi_sessions_and_six_states_are_explicit(self):
         self.assertIn("foreach ($Language in @('ja', 'en'))", self.source)
