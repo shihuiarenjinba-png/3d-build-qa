@@ -5,7 +5,8 @@ Set-StrictMode -Version Latest
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
-function Read-YesNo([string]$Prompt) {
+function Read-YesNo {
+    param([string]$Prompt)
     while ($true) {
         $answer = (Read-Host "$Prompt [Y/N]").Trim().ToUpperInvariant()
         if ($answer -in @('Y', 'YES')) { return $true }
@@ -23,13 +24,15 @@ function Read-FirstGoalSeconds {
         Write-Host '0〜1800の実測秒数を入力してください。30秒超はHOLDになります。' -ForegroundColor Yellow
     }
 }
-function Write-JsonExclusive([string]$Path, [object]$Value) {
+function Write-JsonExclusive {
+    param([string]$Path, [object]$Value)
     $json = ($Value | ConvertTo-Json -Depth 12) + [Environment]::NewLine
     $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($json)
     $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
     try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush() } finally { $stream.Dispose() }
 }
-function Wait-ForMainWindow($Process) {
+function Wait-ForMainWindow {
+    param($Process)
     $deadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $deadline) {
         $Process.Refresh()
@@ -39,7 +42,8 @@ function Wait-ForMainWindow($Process) {
     }
     throw 'HOLD: no visible candidate.exe window within 30 seconds.'
 }
-function Focus-GameWindow([IntPtr]$Handle, $Process) {
+function Focus-GameWindow {
+    param([IntPtr]$Handle, $Process)
     $Process.Refresh()
     if ($Process.HasExited) { throw 'HOLD: candidate.exe exited during the session.' }
     if (-not [PrismCaptureNative]::SetForegroundWindow($Handle)) {
@@ -47,7 +51,8 @@ function Focus-GameWindow([IntPtr]$Handle, $Process) {
     }
     Start-Sleep -Milliseconds 300
 }
-function Capture-PrimaryScreen([string]$Destination) {
+function Capture-PrimaryScreen {
+    param([string]$Destination)
     $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     if ($bounds.Width -ne 1024 -or $bounds.Height -ne 768) {
         throw "HOLD: primary display must be exactly 1024x768; detected $($bounds.Width)x$($bounds.Height)."
@@ -66,7 +71,8 @@ function Capture-PrimaryScreen([string]$Destination) {
     } finally { $memory.Dispose(); $graphics.Dispose(); $bitmap.Dispose() }
     return (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-function Wait-ForActualNinetySeconds([Diagnostics.Stopwatch]$Watch, $Process) {
+function Wait-ForActualNinetySeconds {
+    param([Diagnostics.Stopwatch]$Watch, $Process)
     while ($Watch.Elapsed.TotalSeconds -lt 90) {
         $Process.Refresh()
         if ($Process.HasExited) { throw 'HOLD: game exited before 90 real seconds of gameplay elapsed.' }
@@ -127,6 +133,14 @@ $FramePlan = @(
     @{ key = 'outcome'; file = 'outcome.png'; label = 'Win or lose outcome' },
     @{ key = 'retry'; file = 'retry.png'; label = 'Post-outcome retry' }
 )
+$AttemptsRoot = Join-Path $Root 'physical-session-attempts'
+if (Test-Path -LiteralPath $AttemptsRoot) {
+    $AttemptsRootItem = Get-Item -LiteralPath $AttemptsRoot -Force
+    if ($AttemptsRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'HOLD: physical-session-attempts cannot be a reparse point.' }
+} else {
+    New-Item -ItemType Directory -Path $AttemptsRoot | Out-Null
+}
+
 $ObservationFields = @(
     @{ key = 'goal_understood_in_30s'; label = '初回30秒以内に目的を理解できた' },
     @{ key = 'tower_order_1_2_3_understood'; label = '塔1→2→3の順番を理解できた' },
